@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -168,6 +169,15 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
         model.pending.forEach { add(ChatItem.Pend(it)) }
     }
 
+    // The list keeps its place by item key, so a new message (sent or received) would land below the
+    // newest one on screen, behind the composer and keyboard. If the user is at the bottom, follow it;
+    // if they scrolled up into the history, leave them there.
+    val listState = rememberLazyListState()
+    val newest = items.lastOrNull()?.key
+    LaunchedEffect(newest) {
+        if (newest != null && listState.firstVisibleItemIndex <= 3) listState.animateScrollToItem(0)
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -200,6 +210,7 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
                 // and push the rest up. Nothing ever scrolls in code.
                 LazyColumn(
                     Modifier.fillMaxSize(),
+                    state = listState,
                     reverseLayout = true,
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),

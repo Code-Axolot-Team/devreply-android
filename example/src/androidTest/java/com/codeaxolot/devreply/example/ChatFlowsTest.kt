@@ -123,6 +123,39 @@ class ChatFlowsTest {
         snapshot("b4-read")
     }
 
+    /**
+     * Keyboard up, a long chat: every new message, sent or received, shows right above the composer,
+     * never behind it. The script answers "Many test <nonce> 8" with "Founder reply <nonce>".
+     */
+    @Test
+    fun c_newMessagesStayAboveTheComposer() {
+        startNew("bug", "Many test $nonce 1")
+        device.wait(Until.findObject(By.res("devreply.emailask.skip")), 5_000)?.click()
+        val composer = device.wait(Until.findObject(By.res("devreply.composer")), 5_000)
+        for (i in 2..8) {
+            composer.click()
+            composer.text = "Many test $nonce $i"
+            device.findObject(By.res("devreply.send")).click()
+            val sent = device.wait(Until.findObject(By.text("Many test $nonce $i")), 10_000)
+            assertNotNull("message $i on screen", sent)
+            Thread.sleep(700)
+            val top = device.findObject(By.res("devreply.composer")).visibleBounds.top
+            val msg = device.findObject(By.text("Many test $nonce $i"))
+            assertNotNull("message $i still visible", msg)
+            assertTrue("message $i above the composer (${msg.visibleBounds} vs $top)", msg.visibleBounds.bottom <= top)
+        }
+        assertTrue("keyboard still up", keyboardShown())
+        snapshot("c1-sent-with-keyboard")
+        // A reply arrives while the keyboard is up.
+        val reply = device.wait(Until.findObject(By.text("Founder reply $nonce")), 90_000)
+        assertNotNull("the reply arrives", reply)
+        Thread.sleep(800)
+        val top = device.findObject(By.res("devreply.composer")).visibleBounds.top
+        val r = device.findObject(By.text("Founder reply $nonce"))
+        assertTrue("the reply shows above the composer (${r.visibleBounds} vs $top)", r.visibleBounds.bottom <= top && r.visibleBounds.height() > 20)
+        snapshot("c2-reply-with-keyboard")
+    }
+
     private fun startNew(category: String, text: String) {
         device.findObject(By.res("openMessenger")).click()
         device.wait(Until.findObject(By.res("devreply.start.$category")), 15_000).click()

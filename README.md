@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Code-Axolot-Team:devreply-android:0.3.0")
+    implementation("com.github.Code-Axolot-Team:devreply-android:0.3.1")
 }
 ```
 

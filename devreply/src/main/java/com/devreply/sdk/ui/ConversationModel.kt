@@ -21,6 +21,8 @@ import com.devreply.sdk.Messenger
 import com.devreply.sdk.OutgoingAttachment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -135,15 +137,18 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
         val item = Pending(text, attachments)
         pending = pending + item
         sentCount++
-        Messenger.scope.launch { deliver(item) }
+        Messenger.scope.launch { sending.withLock { deliver(item) } }
     }
 
     fun retry(item: Pending) {
         if (pending.none { it.id == item.id }) return
         val fresh = item.copy(failure = null)
         pending = pending.map { if (it.id == item.id) fresh else it }
-        Messenger.scope.launch { deliver(fresh) }
+        Messenger.scope.launch { sending.withLock { deliver(fresh) } }
     }
+
+    /** Sends go out one at a time, in the order typed: two in flight could reach the server swapped. */
+    private val sending = Mutex()
 
     private suspend fun deliver(item: Pending) {
         try {
