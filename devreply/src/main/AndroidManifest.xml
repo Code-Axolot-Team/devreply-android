@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application>
+        <!-- The messenger. Opened with DevReply.present(context). Own theme, never the host's. -->
+        <activity
+            android:name="com.devreply.sdk.ui.DevReplyActivity"
+            android:exported="false"
+            android:theme="@style/DevReply.Theme"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
+    </application>
+</manifest>

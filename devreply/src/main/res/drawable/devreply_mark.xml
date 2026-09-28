@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The DevReply mark (speech bubble with three dots), same artwork as devreply.com and iOS. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="92dp"
+    android:height="88dp"
+    android:viewportWidth="92"
+    android:viewportHeight="88">
+    <group android:translateX="-4" android:translateY="-10">
+        <path
+            android:fillColor="#FFFFFF"
+            android:strokeColor="#111111"
+            android:strokeWidth="6"
+            android:strokeLineJoin="round"
+            android:pathData="M22,16h56a12,12 0,0 1,12 12v36a12,12 0,0 1,-12 12H48L30,92V76h-8a12,12 0,0 1,-12 -12V28a12,12 0,0 1,12 -12z" />
+        <path android:fillColor="#111111" android:pathData="M34,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+        <path android:fillColor="#111111" android:pathData="M50,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+        <path android:fillColor="#111111" android:pathData="M66,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    </group>
+</vector>
