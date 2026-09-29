@@ -60,7 +60,7 @@ internal object Messenger {
         conversations = emptyList()
         val appName = app.applicationInfo.loadLabel(app.packageManager).toString()
         config = cachedConfig(app, publicKey, appName) ?: MessengerConfig.placeholder(appName)
-        (app as? android.app.Application)?.let { AppWatcher.start(it) }
+        (app as? android.app.Application)?.let { AppWatcher.start(it, context as? android.app.Activity) }
         // Register early so the first open is instant, and pick up unread replies.
         scope.launch {
             hostUser?.let { (name, email) -> runCatching { saveProfile(name, email) } }

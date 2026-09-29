@@ -61,7 +61,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.devreply.sdk.Messenger
 import com.devreply.sdk.R
 import kotlin.math.abs
@@ -91,10 +99,16 @@ internal object UnreadBubble {
     fun attach(activity: Activity) {
         val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
         if (content.findViewWithTag<ComposeView>(TAG) != null) return
-        if (content.findViewTreeLifecycleOwner() == null && activity.window.decorView.findViewTreeLifecycleOwner() == null) return
         val keyboardUp = mutableStateOf(false)
         val view = ComposeView(activity).apply {
             tag = TAG
+            // Plain activities (Flutter's FlutterActivity) have no lifecycle owner, which Compose needs:
+            // give the overlay its own, alive while the activity is.
+            if (content.findViewTreeLifecycleOwner() == null) {
+                val owner = OverlayOwner(activity)
+                setViewTreeLifecycleOwner(owner)
+                setViewTreeSavedStateRegistryOwner(owner)
+            }
             setContent { Overlay(keyboardUp) { open(activity) } }
         }
         // The keyboard, read from the window (works whether or not the app draws edge to edge).
@@ -110,6 +124,33 @@ internal object UnreadBubble {
         val intent = Intent(activity, DevReplyActivity::class.java)
         if (id != null) intent.putExtra(DevReplyActivity.EXTRA_CONVERSATION, id.toString())
         activity.startActivity(intent)
+    }
+}
+
+/** A lifecycle for the overlay on activities without one: resumed while the activity lives. */
+private class OverlayOwner(activity: Activity) : LifecycleOwner, SavedStateRegistryOwner {
+    private val registry = LifecycleRegistry(this)
+    private val controller = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle get() = registry
+    override val savedStateRegistry: SavedStateRegistry get() = controller.savedStateRegistry
+
+    init {
+        controller.performRestore(null)
+        registry.currentState = Lifecycle.State.RESUMED
+        activity.application.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityDestroyed(a: Activity) {
+                if (a === activity) {
+                    registry.currentState = Lifecycle.State.DESTROYED
+                    activity.application.unregisterActivityLifecycleCallbacks(this)
+                }
+            }
+            override fun onActivityCreated(a: Activity, b: android.os.Bundle?) = Unit
+            override fun onActivityStarted(a: Activity) = Unit
+            override fun onActivityResumed(a: Activity) = Unit
+            override fun onActivityPaused(a: Activity) = Unit
+            override fun onActivityStopped(a: Activity) = Unit
+            override fun onActivitySaveInstanceState(a: Activity, b: android.os.Bundle) = Unit
+        })
     }
 }
 

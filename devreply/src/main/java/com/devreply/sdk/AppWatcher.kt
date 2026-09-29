@@ -21,10 +21,15 @@ internal object AppWatcher : Application.ActivityLifecycleCallbacks {
     private var lastRefresh = 0L
     private var polling: Job? = null
 
-    fun start(app: Application) {
+    /**
+     * [current]: the screen already on display when configure runs late (React Native and Flutter
+     * configure from their own code, after the activity resumed). It gets the bubble straight away.
+     */
+    fun start(app: Application, current: Activity? = null) {
         if (started) return
         started = true
         app.registerActivityLifecycleCallbacks(this)
+        if (current != null && !current.isFinishing) onActivityResumed(current)
     }
 
     override fun onActivityResumed(activity: Activity) {

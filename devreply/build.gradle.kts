@@ -31,7 +31,7 @@ publishing {
         register<MavenPublication>("release") {
             groupId = "com.github.Code-Axolot-Team"
             artifactId = "devreply-android"
-            version = (project.findProperty("version") as String?)?.takeIf { it != "unspecified" } ?: "0.3.1"
+            version = (project.findProperty("version") as String?)?.takeIf { it != "unspecified" } ?: "0.3.2"
             afterEvaluate { from(components["release"]) }
             pom {
                 name.set("DevReply")

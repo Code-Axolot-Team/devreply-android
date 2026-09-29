@@ -18,7 +18,11 @@ public object DevReply {
     /** The production API. Override only for local development. */
     public const val DEFAULT_API_URL: String = "https://api.devreply.com"
 
-    /** Call once at launch with the app's Android public key. It is safe to ship inside the app. */
+    /**
+     * Call once at launch with the app's Android public key. It is safe to ship inside the app.
+     * From an Application, or from the current Activity if you configure later (the unread bubble
+     * then shows on it straight away).
+     */
     @JvmStatic
     @JvmOverloads
     public fun configure(context: Context, publicKey: String, apiUrl: String = DEFAULT_API_URL) {
