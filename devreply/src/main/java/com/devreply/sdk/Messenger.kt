@@ -49,10 +49,12 @@ internal object Messenger {
 
     private val registering = Mutex()
     private var cachedToken: String? = null
+    private var backoff = RegistrationBackoff()
 
     fun configure(context: Context, publicKey: String, apiUrl: String) {
         val app = context.applicationContext
         appContext = app
+        if (publicKey != this.publicKey) backoff = RegistrationBackoff()
         this.publicKey = publicKey
         client = ApiClient(apiUrl)
         tokens = TokenStore(app)
@@ -66,7 +68,26 @@ internal object Messenger {
             hostUser?.let { (name, email) -> runCatching { saveProfile(name, email) } }
             flushAttributes()
             refresh()
+            syncLocale()
         }
+    }
+
+    /** The app's language choice ([DevReply.setLocale]); null follows the device. */
+    fun setLocale(tag: String?) {
+        L10n.override = tag?.trim()?.replace('_', '-')?.takeIf { it.isNotEmpty() }
+        if (client != null) scope.launch { syncLocale() }
+    }
+
+    private fun localePrefs() = appContext?.getSharedPreferences("devreply", Context.MODE_PRIVATE)
+
+    /** Tells the server the chat's language when it differs from what it last heard (no push fields). */
+    private suspend fun syncLocale() {
+        val account = account ?: return
+        val tag = L10n.tag
+        val prefs = localePrefs()
+        if (prefs?.getString("locale:$account", null) == tag) return
+        runCatching { authorized { api, t -> api.updateLocale(t, tag) } }
+            .onSuccess { prefs?.edit()?.putString("locale:$account", tag)?.apply() }
     }
 
     private val account: String?
@@ -88,10 +109,26 @@ internal object Messenger {
         cachedToken?.let { return it }
         return registering.withLock {
             cachedToken ?: (withContext(Dispatchers.IO) { tokens?.token(account) }
-                ?: client.registerInstall(publicKey, DeviceInfo.current(context)).also { token ->
-                    withContext(Dispatchers.IO) { tokens?.setToken(token, account) }
-                }).also { cachedToken = it }
+                ?: register(client, publicKey, account, context)).also { cachedToken = it }
         }
+    }
+
+    /** Registers this install, unless the key was refused recently (then fails at once, no request). */
+    private suspend fun register(client: ApiClient, publicKey: String, account: String, context: Context): String {
+        if (!backoff.allowed()) throw DevReplyError.InvalidPublicKey
+        val token = try {
+            client.registerInstall(publicKey, DeviceInfo.current(context))
+        } catch (e: DevReplyError.InvalidPublicKey) {
+            if (backoff.refused()) {
+                android.util.Log.w("DevReply", "DevReply: this public key isn't recognised: ${publicKey.take(9)}… (next try in ${backoff.waitMs() / 1000} s)")
+            }
+            throw e
+        }
+        backoff.succeeded()
+        // The registration carried the language: no PATCH needed for it.
+        localePrefs()?.edit()?.putString("locale:$account", L10n.tag)?.apply()
+        withContext(Dispatchers.IO) { tokens?.setToken(token, account) }
+        return token
     }
 
     /** Runs [call] with the token. If the token was revoked, registers again once and retries. */
@@ -161,6 +198,30 @@ internal object Messenger {
         if (batch.isEmpty()) return
         val ok = runCatching { authorized { api, t -> api.updateProfile(t, null, null, batch) } }.isSuccess
         if (ok) batch.forEach { (k, v) -> if (pendingAttributes[k] == v) pendingAttributes.remove(k) }
+    }
+
+    private var reportedDeepLink = false
+
+    /**
+     * A DevReply link opened the app (the button in emails): shows that conversation if it's this
+     * install's, the messenger home otherwise, and tells the server once that the deep link works.
+     */
+    fun openFromLink(context: Context, conversationId: UUID) {
+        val start = java.lang.ref.WeakReference(context)
+        val app = context.applicationContext
+        scope.launch {
+            if (!reportedDeepLink) {
+                reportedDeepLink = runCatching { authorized { api, t -> api.deepLinkOpened(t) } }.isSuccess
+            }
+            if (conversation(conversationId) == null) refresh()
+            val target = start.get()?.takeIf { it !is android.app.Activity || (!it.isFinishing && !it.isDestroyed) } ?: app
+            val intent = android.content.Intent(target, com.devreply.sdk.ui.DevReplyActivity::class.java)
+            if (conversation(conversationId) != null) {
+                intent.putExtra(com.devreply.sdk.ui.DevReplyActivity.EXTRA_CONVERSATION, conversationId.toString())
+            }
+            if (target !is android.app.Activity) intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { target.startActivity(intent) }
+        }
     }
 
     fun upsert(conversation: Conversation) {

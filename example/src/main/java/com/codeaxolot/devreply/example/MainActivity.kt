@@ -1,6 +1,7 @@
 package com.codeaxolot.devreply.example
 
 import android.graphics.Color as AndroidColor
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -55,7 +56,18 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // The chat's language: the device's by default. Apps with their own language setting pass it on
+        // (`adb shell am start … --es devreply.locale es` shows it here).
+        intent?.getStringExtra("devreply.locale")?.let { DevReply.setLocale(it.ifBlank { null }) }
         setContent { Home(open = { DevReply.present(this) }) }
+        // Opened from a DevReply email's button: go to that conversation.
+        DevReply.handle(this, intent?.data)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra("devreply.locale")?.let { DevReply.setLocale(it.ifBlank { null }) }
+        if (DevReply.handle(this, intent.data)) return
     }
 
     override fun onResume() {

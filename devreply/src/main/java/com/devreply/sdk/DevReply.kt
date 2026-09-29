@@ -2,9 +2,11 @@ package com.devreply.sdk
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.graphics.Color
 import com.devreply.sdk.ui.Brand
 import com.devreply.sdk.ui.DevReplyActivity
+import java.util.UUID
 
 /**
  * DevReply: a native chat between your app's users and you (spec 05).
@@ -77,6 +79,60 @@ public object DevReply {
         if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }
+
+    /**
+     * Opens a DevReply link: the "Reply in the app" button in DevReply's emails opens your app with
+     * `yourapp://devreply?devreply=<conversation>`. Pass every link your app receives; this returns
+     * `true` and opens that conversation when the link is DevReply's, `false` otherwise (handle it yourself).
+     *
+     * Set the same deep link in the dashboard (app → Settings → Emails to your users), and add to the
+     * activity that opens links, in `AndroidManifest.xml`:
+     * ```xml
+     * <intent-filter>
+     *     <action android:name="android.intent.action.VIEW" />
+     *     <category android:name="android.intent.category.DEFAULT" />
+     *     <category android:name="android.intent.category.BROWSABLE" />
+     *     <data android:scheme="yourapp" android:host="devreply" />
+     * </intent-filter>
+     * ```
+     * ```kotlin
+     * override fun onCreate(savedInstanceState: Bundle?) {
+     *     super.onCreate(savedInstanceState)
+     *     DevReply.handle(this, intent?.data)   // false for any other link (or none)
+     * }
+     * override fun onNewIntent(intent: Intent) {
+     *     super.onNewIntent(intent)
+     *     if (DevReply.handle(this, intent.data)) return
+     * }
+     * ```
+     */
+    @JvmStatic
+    public fun handle(context: Context, uri: Uri?): Boolean {
+        if (uri == null) return false
+        val raw = runCatching { uri.getQueryParameter("devreply") }.getOrNull() ?: return false
+        val id = runCatching { UUID.fromString(raw.trim()) }.getOrNull() ?: return false
+        if (Messenger.client == null) {
+            android.util.Log.w("DevReply", "DevReply.handle: call DevReply.configure first")
+            return true
+        }
+        Messenger.openFromLink(context, id)
+        return true
+    }
+
+    /**
+     * The chat's language, e.g. `"es"`, `"pt-BR"`, `"de-AT"`. By default (null) it follows the
+     * device's languages. Supported: English, Spanish, Portuguese (Brazil), French, German, Italian,
+     * Dutch, Polish, Russian, Ukrainian, Turkish, Greek, Japanese, Korean and Chinese (Simplified);
+     * anything else shows in English. Open screens switch at once.
+     */
+    @JvmStatic
+    public fun setLocale(tag: String?) {
+        Messenger.setLocale(tag)
+    }
+
+    /** The language the app chose with [setLocale], or null when the chat follows the device. */
+    @JvmStatic
+    public val locale: String? get() = L10n.override
 
     /** Fetches unread replies, e.g. when the app returns to the foreground. */
     public suspend fun refresh() {

@@ -1,6 +1,5 @@
 package com.devreply.sdk.ui
 
-import android.text.format.DateUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -41,6 +41,12 @@ import com.devreply.sdk.DevReply
 import com.devreply.sdk.DevReplyCategory
 import com.devreply.sdk.Messenger
 import com.devreply.sdk.MessengerConfig
+import com.devreply.sdk.L10n
+import com.devreply.sdk.greetingText
+import com.devreply.sdk.introText
+import com.devreply.sdk.replyTimeText
+import com.devreply.sdk.t
+import com.devreply.sdk.title
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -76,7 +82,7 @@ internal fun HomeScreen(open: (Route) -> Unit, close: () -> Unit) {
             StartSection(config, open)
             if (conversations.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    BasicText("Your conversations", style = display(22.sp))
+                    BasicText(t("your_conversations"), style = display(22.sp))
                     // Open ones first, resolved below.
                     conversations.sortedBy { if (it.isClosed) 1 else 0 }.take(20).forEach { c ->
                         BrutalButton({ open(Route.Chat(c.id, c.category)) }, Modifier.fillMaxWidth(), shadow = 4.dp) {
@@ -89,7 +95,7 @@ internal fun HomeScreen(open: (Route) -> Unit, close: () -> Unit) {
                 ErrorNote(error) { scope.launch { Messenger.refresh() } }
             }
             BasicText(
-                "Powered by DevReply",
+                t("powered"),
                 Modifier.fillMaxWidth(),
                 style = text(12.sp, FontWeight.Medium, Brand.muted).copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
             )
@@ -113,23 +119,44 @@ private fun Header(config: MessengerConfig, close: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TeamAvatar(config.teamName, 44.dp)
+            TeamAvatar(config.teamName, 44.dp, imageUrl = config.appIconUrl, modifier = Modifier.testTag("devreply.appicon"))
             Box(Modifier.weight(1f)) {
-                Kicker(config.teamName.ifEmpty { "Support" }, inverted = true)
+                Kicker(config.teamName.ifEmpty { t("team") }, inverted = true)
             }
-            IconSquareButton(com.devreply.sdk.R.drawable.devreply_ic_close, "Close", close, Modifier.testTag("devreply.close"))
+            IconSquareButton(com.devreply.sdk.R.drawable.devreply_ic_close, t("close"), close, Modifier.testTag("devreply.close"))
         }
-        BasicText(config.greeting, style = display(38.sp))
-        BasicText(config.intro, style = text(17.sp, FontWeight.Medium))
-        if (config.replyTime.isNotEmpty()) {
+        BasicText(config.greetingText, style = display(38.sp))
+        BasicText(config.introText, style = text(17.sp, FontWeight.Medium))
+        if (config.replyTimeText.isNotEmpty()) {
             Row(
                 Modifier.brutal(shadow = 3.dp, lineWidth = 2.5.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box(Modifier.size(10.dp).background(Brand.online).border(1.5.dp, theme.ink))
-                BasicText(config.replyTime, style = text(14.sp, FontWeight.Bold))
+                if (config.team.isEmpty()) {
+                    Box(Modifier.size(10.dp).background(Brand.online).border(1.5.dp, theme.ink))
+                } else {
+                    TeamFaces(config.team)
+                }
+                BasicText(config.replyTimeText, style = text(14.sp, FontWeight.Bold))
             }
+        }
+    }
+}
+
+/** The people who answer, overlapping squares (up to 3), like a team on a support page. */
+@Composable
+private fun TeamFaces(team: List<com.devreply.sdk.Persona>) {
+    val face = 24.dp
+    val step = 16.dp
+    Box(
+        Modifier
+            .size(width = face + step * (team.size - 1), height = face)
+            .testTag("devreply.team")
+            .semantics { contentDescription = team.joinToString(", ") { it.name } },
+    ) {
+        team.forEachIndexed { i, p ->
+            TeamAvatar(p.name, face, imageUrl = p.avatarUrl, lineWidth = 2.dp, modifier = Modifier.offset(x = step * i))
         }
     }
 }
@@ -137,14 +164,14 @@ private fun Header(config: MessengerConfig, close: () -> Unit) {
 @Composable
 private fun StartSection(config: MessengerConfig, open: (Route) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BasicText("Start a conversation", style = display(22.sp))
+        BasicText(t("start_title"), style = display(22.sp))
         config.startButtons.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 pair.forEach { button ->
                     BrutalButton(
                         { open(Route.Chat(null, button.category)) },
                         Modifier.weight(1f).testTag("devreply.start.${button.category.name.lowercase()}"),
-                    ) { StartTile(button) }
+                    ) { StartTile(button, config.title(button)) }
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -153,13 +180,13 @@ private fun StartSection(config: MessengerConfig, open: (Route) -> Unit) {
 }
 
 @Composable
-private fun StartTile(button: MessengerConfig.StartButton) {
+private fun StartTile(button: MessengerConfig.StartButton, title: String) {
     Column(
         Modifier.fillMaxWidth().heightIn(min = 144.dp).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Image(painterResource(button.category.icon), null, Modifier.size(46.dp))
-        BasicText(button.title, style = text(16.sp, FontWeight.Bold, Brand.ink))
+        BasicText(title, style = text(16.sp, FontWeight.Bold, Brand.ink))
     }
 }
 
@@ -173,25 +200,23 @@ private fun ConversationRow(c: Conversation) {
         Image(painterResource(category.icon), null, Modifier.size(34.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Kicker(if (c.lastAuthor == "user") "You" else "Team")
+                Kicker(if (c.lastAuthor == "user") t("you") else t("team"))
                 if (c.isClosed) {
                     BasicText(
-                        "✓ Resolved",
+                        t("resolved"),
                         Modifier.background(Brand.resolved).border(1.5.dp, Brand.ink).padding(horizontal = 6.dp, vertical = 2.dp),
                         style = text(11.sp, FontWeight.Bold, Brand.ink),
                     )
                 }
                 Spacer(Modifier.weight(1f))
                 BasicText(
-                    DateUtils.getRelativeTimeSpanString(
-                        c.lastMessageAt.toEpochMilli(), System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
-                    ).toString(),
+                    L10n.relative(c.lastMessageAt),
                     style = text(12.sp, FontWeight.Medium, Brand.muted),
                     maxLines = 1,
                 )
             }
             BasicText(
-                c.lastText ?: "Photo",
+                c.lastText?.let { if (it == L10n.LEGACY_RESOLVED) t("system.resolved") else it } ?: t("photo"),
                 style = text(15.sp, if (c.unread > 0) FontWeight.Bold else FontWeight.Normal, Brand.ink),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -203,7 +228,9 @@ private fun ConversationRow(c: Conversation) {
                     .sizeIn(minWidth = 24.dp, minHeight = 24.dp)
                     .background(Brand.pink)
                     .border(2.dp, Brand.ink)
-                    .semantics { contentDescription = "${c.unread} unread" },
+                    .semantics {
+                        contentDescription = t("a11y.unread", "count" to c.unread)
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 BasicText("${c.unread}", Modifier.padding(horizontal = 4.dp), style = text(13.sp, FontWeight.Bold, Brand.ink))

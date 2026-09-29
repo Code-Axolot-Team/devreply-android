@@ -37,7 +37,7 @@ import kotlin.math.roundToInt
  */
 internal class Staged(val attachment: OutgoingAttachment, val preview: ImageBitmap?) {
     val id: UUID = UUID.randomUUID()
-    val name: String get() = attachment.filename ?: "Photo"
+    val name: String get() = attachment.filename ?: com.devreply.sdk.t("photo")
 
     sealed interface Problem {
         data object Unreadable : Problem
@@ -169,19 +169,19 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
             pending = pending.filter { it.id != item.id }
         } catch (e: Exception) {
             val reason = when (e) {
-                is DevReplyError.Unavailable -> "Attachments can't be sent right now. Tap to retry."
-                is DevReplyError.Network -> "You're offline. Tap to retry."
-                is DevReplyError.Invalid -> "Not sent: ${e.message}. Tap to retry."
-                else -> "Not sent. Tap to retry."
+                is DevReplyError.Unavailable -> com.devreply.sdk.t("failed.attachments")
+                is DevReplyError.Network -> com.devreply.sdk.t("failed.offline")
+                is DevReplyError.Invalid -> com.devreply.sdk.t("failed.reason", "reason" to e.message)
+                else -> com.devreply.sdk.t("failed.generic")
             }
             pending = pending.map { if (it.id == item.id) it.copy(failure = reason) else it }
         }
     }
 }
 
-/** Loads an attachment once per URL and keeps it in memory, so polling doesn't reload it. */
+/** Loads an attachment, avatar or app icon once per URL and keeps it in memory, so polling doesn't reload it. */
 internal object ImageCache {
-    private val cache = android.util.LruCache<String, ImageBitmap>(24)
+    private val cache = android.util.LruCache<String, ImageBitmap>(48)
 
     fun cached(url: String): ImageBitmap? = cache.get(url)
 

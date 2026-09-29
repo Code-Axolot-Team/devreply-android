@@ -157,3 +157,84 @@ class AttributeTest {
         assertEquals(3L, json.get("whole"))
     }
 }
+
+// SDK 0.4.0 (spec 05): personas, the app icon, team faces, and registration back-off.
+class PersonaTest {
+    private fun message(extra: String, author: String = "admin") = Message.parse(
+        JSONObject(
+            """{"id":"01a0e892-b653-7191-9df9-c7e19fc68be7","author":"$author","is_internal_note":false,
+               "created_at":"2026-09-28T15:12:04.177473Z","blocks":[{"type":"text","text":"Hi"}]$extra}""",
+        ),
+    )
+
+    @Test fun personaOnTeamMessages() {
+        val m = message(""","persona":{"name":"Anna","title":"Support","avatar_url":"https://api.devreply.com/i/1"}""")
+        assertEquals(Persona("Anna", "Support", "https://api.devreply.com/i/1"), m.persona)
+    }
+
+    @Test fun personaIsOptionalAndForgiving() {
+        assertNull(message("").persona)
+        assertNull(message(""","persona":null""").persona)
+        assertNull("not an object", message(""","persona":"Anna"""").persona)
+        assertNull("no name, no label", message(""","persona":{"title":"Support"}""").persona)
+        assertEquals(Persona("Anna", "", null), message(""","persona":{"name":" Anna ","avatar_url":""}""").persona)
+        assertNull("the user's own messages never get one", message(""","persona":{"name":"Anna"}""", author = "user").persona)
+        // Newer fields inside persona don't matter.
+        assertEquals("Anna", message(""","persona":{"name":"Anna","kind":"agent","x":[1]}""").persona?.name)
+    }
+
+    @Test fun configIconAndTeam() {
+        val c = MessengerConfig.parse(
+            JSONObject(
+                """{"app_name":"Fox Notes","app_icon_url":"https://api.devreply.com/i/9",
+                   "team":[{"name":"Anna","title":"Support","avatar_url":"https://x/a"},{"title":"no name"},
+                           {"name":"Sergei","title":"","avatar_url":null},{"name":"C"},{"name":"D"}]}""",
+            ),
+            "Fallback",
+        )
+        assertEquals("https://api.devreply.com/i/9", c.appIconUrl)
+        assertEquals("bad items skipped, 3 at most", listOf("Anna", "Sergei", "C"), c.team.map { it.name })
+        val old = MessengerConfig.parse(JSONObject("""{"app_name":"Fox Notes"}"""), "Fallback")
+        assertNull(old.appIconUrl)
+        assertTrue(old.team.isEmpty())
+        val odd = MessengerConfig.parse(JSONObject("""{"app_icon_url":5,"team":"nope"}"""), "Fallback")
+        assertNull(odd.appIconUrl)
+        assertTrue(odd.team.isEmpty())
+    }
+
+    @Test fun sdkVersionIs040() {
+        assertEquals("0.4.0", DEVREPLY_SDK_VERSION)
+    }
+}
+
+class RegistrationBackoffTest {
+    @Test fun waitsLongerAfterEachRefusal() {
+        var now = 0L
+        val b = RegistrationBackoff { now }
+        assertTrue(b.allowed())
+        assertTrue("the first refusal is the one that logs", b.refused())
+        assertFalse(b.allowed())
+        now += 59_000
+        assertFalse("not before a minute", b.allowed())
+        now += 1_000
+        assertTrue(b.allowed())
+        assertFalse("logs only once", b.refused())
+        now += 4 * 60_000
+        assertFalse(b.allowed())
+        now += 60_000
+        assertTrue("then 5 minutes", b.allowed())
+        b.refused()
+        now += 30 * 60_000
+        assertTrue("then 30 minutes", b.allowed())
+        b.refused()
+        now += 6 * 60 * 60_000 - 1
+        assertFalse(b.allowed())
+        now += 1
+        assertTrue("then every 6 hours", b.allowed())
+        b.refused()
+        now += 6 * 60 * 60_000
+        assertTrue("stays at 6 hours", b.allowed())
+        b.succeeded()
+        assertTrue(b.allowed())
+    }
+}

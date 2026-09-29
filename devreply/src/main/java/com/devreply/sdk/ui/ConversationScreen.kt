@@ -105,6 +105,9 @@ import com.devreply.sdk.DevReplyError
 import com.devreply.sdk.Message
 import com.devreply.sdk.Messenger
 import com.devreply.sdk.R
+import com.devreply.sdk.replyAllowText
+import com.devreply.sdk.replyTimeText
+import com.devreply.sdk.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -122,7 +125,8 @@ private sealed interface ChatItem {
     val key: String
 
     data class Time(val at: Instant, override val key: String) : ChatItem
-    data class Msg(val message: Message) : ChatItem { override val key get() = message.id.toString() }
+    /** [by]: the persona label above it, on the first team message of each group (spec 05, 0.4.0). */
+    data class Msg(val message: Message, val by: com.devreply.sdk.Persona? = null) : ChatItem { override val key get() = message.id.toString() }
     data class Pend(val item: ConversationModel.Pending) : ChatItem { override val key get() = "pending-${item.id}" }
 
     /** Under the user's first message: we got it, please allow up to <reply time>. */
@@ -160,10 +164,25 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
 
     val firstFromUser = model.messages.indexOfFirst { it.isFromUser }
     val items = buildList {
+        // A group of team replies ends after the user's message, a time label, or another persona.
+        var groupPersona: String? = null
         model.messages.forEachIndexed { i, m ->
             val gap = i == 0 || Duration.between(model.messages[i - 1].createdAt, m.createdAt).toMinutes() > 15
-            if (gap) add(ChatItem.Time(m.createdAt, "time-${m.id}"))
-            add(ChatItem.Msg(m))
+            if (gap) {
+                add(ChatItem.Time(m.createdAt, "time-${m.id}"))
+                groupPersona = null
+            }
+            var by: com.devreply.sdk.Persona? = null
+            when {
+                m.isFromUser -> groupPersona = null
+                m.author == Message.Author.System -> Unit
+                else -> {
+                    val persona = m.persona
+                    if (persona != null && persona.name != groupPersona) by = persona
+                    groupPersona = persona?.name
+                }
+            }
+            add(ChatItem.Msg(m, by))
             if (i == firstFromUser) add(ChatItem.Notice)
         }
         model.pending.forEach { add(ChatItem.Pend(it)) }
@@ -219,9 +238,12 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
                         Box(Modifier.animateItem()) {
                             when (item) {
                                 is ChatItem.Time -> TimeLabel(item.at)
-                                is ChatItem.Msg -> MessageRow(item.message, config.teamName, onOpenImage = { viewing = it })
+                                is ChatItem.Msg -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    item.by?.let { PersonaLabel(it) }
+                                    MessageRow(item.message, config.teamName, onOpenImage = { viewing = it })
+                                }
                                 is ChatItem.Pend -> PendingRow(item.item, config.teamName) { model.retry(item.item) }
-                                ChatItem.Notice -> ReceivedNotice(config.teamName, config.replyWithin, Messenger.profile?.email?.takeIf { it.isNotBlank() })
+                                ChatItem.Notice -> ReceivedNotice(config.teamName, config.replyAllowText, Messenger.profile?.email?.takeIf { it.isNotBlank() })
                             }
                         }
                     }
@@ -260,12 +282,12 @@ private fun TopBar(back: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        IconSquareButton(R.drawable.devreply_ic_back, "Back", back, Modifier.testTag("devreply.back"))
-        TeamAvatar(config.teamName, 32.dp)
+        IconSquareButton(R.drawable.devreply_ic_back, com.devreply.sdk.t("back"), back, Modifier.testTag("devreply.back"))
+        TeamAvatar(config.teamName, 32.dp, imageUrl = config.appIconUrl, modifier = Modifier.testTag("devreply.appicon"))
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            BasicText(config.teamName.ifEmpty { "Chat" }, style = display(16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (config.replyTime.isNotEmpty()) {
-                BasicText(config.replyTime, style = text(11.sp, FontWeight.Medium, theme.ink.copy(alpha = 0.75f)), maxLines = 1)
+            BasicText(config.teamName.ifEmpty { com.devreply.sdk.t("chat") }, style = display(16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (config.replyTimeText.isNotEmpty()) {
+                BasicText(config.replyTimeText, style = text(11.sp, FontWeight.Medium, theme.ink.copy(alpha = 0.75f)), maxLines = 1)
             }
         }
     }
@@ -274,7 +296,7 @@ private fun TopBar(back: () -> Unit) {
 /** Shown while the conversation is empty, at the top of the screen. */
 @Composable
 private fun Intro(category: DevReplyCategory) {
-    val title = Messenger.config.startButtons.firstOrNull { it.category == category }?.title ?: category.defaultTitle
+    val title = Messenger.config.startButtons.firstOrNull { it.category == category }?.let { Messenger.config.title(it) } ?: category.defaultTitle
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 36.dp, start = 20.dp, end = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -310,14 +332,14 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 r.onSuccess { staged = staged + it }
                 r.onFailure { e ->
                     pickError = when (val p = (e as? Staged.ProblemException)?.problem) {
-                        is Staged.Problem.TooBig -> "${p.name} is over 10 MB."
-                        else -> "Couldn't read that file."
+                        is Staged.Problem.TooBig -> com.devreply.sdk.t("too_big", "name" to p.name)
+                        else -> com.devreply.sdk.t("unreadable_file")
                     }
                 }
             }
             if (staged.size > 4) {
                 staged = staged.take(4)
-                pickError = "Up to 4 attachments per message."
+                pickError = com.devreply.sdk.t("too_many")
             }
         }
     }
@@ -354,12 +376,12 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box {
                 IconSquareButton(
-                    R.drawable.devreply_ic_attach, "Attach a photo or file", { menu = true },
+                    R.drawable.devreply_ic_attach, com.devreply.sdk.t("attach"), { menu = true },
                     Modifier.testTag("devreply.attach"), size = 46.dp,
                 )
                 DropdownMenu(menu, { menu = false }, Modifier.background(Color.White)) {
                     DropdownMenuItem(
-                        text = { BasicText("Photo", style = text(16.sp, FontWeight.Medium)) },
+                        text = { BasicText(com.devreply.sdk.t("photo"), style = text(16.sp, FontWeight.Medium)) },
                         leadingIcon = { Image(painterResource(R.drawable.devreply_ic_photo), null, Modifier.size(22.dp)) },
                         onClick = {
                             menu = false
@@ -367,7 +389,7 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                         },
                     )
                     DropdownMenuItem(
-                        text = { BasicText("File", style = text(16.sp, FontWeight.Medium)) },
+                        text = { BasicText(com.devreply.sdk.t("file"), style = text(16.sp, FontWeight.Medium)) },
                         leadingIcon = { Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(22.dp)) },
                         onClick = {
                             menu = false
@@ -392,7 +414,7 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 decorationBox = { inner ->
                     Box(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), contentAlignment = Alignment.CenterStart) {
-                        if (draft.isEmpty()) BasicText("Message…", style = text(17.sp, color = Brand.muted.copy(alpha = 0.7f)))
+                        if (draft.isEmpty()) BasicText(com.devreply.sdk.t("composer.placeholder"), style = text(17.sp, color = Brand.muted.copy(alpha = 0.7f)))
                         inner()
                     }
                 },
@@ -408,7 +430,7 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 fill = theme.accent,
                 shadow = 3.dp,
                 enabled = canSend,
-                label = "Send",
+                label = com.devreply.sdk.t("send"),
             ) {
                 Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
                     Image(painterResource(R.drawable.devreply_ic_send), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(theme.ink))
@@ -444,7 +466,7 @@ private fun StagedThumb(item: Staged, remove: () -> Unit) {
                 .background(Brand.pink)
                 .border(2.dp, Brand.ink)
                 .clickable(onClick = remove)
-                .semantics { contentDescription = "Remove ${item.name}" },
+                .semantics { contentDescription = com.devreply.sdk.t("remove_attachment", "name" to item.name) },
             contentAlignment = Alignment.Center,
         ) {
             Image(painterResource(R.drawable.devreply_ic_close), null, Modifier.size(12.dp))
@@ -476,7 +498,7 @@ private fun NameForm() {
                 val m = e.message ?: "invalid"
                 error = m.replaceFirstChar { it.uppercase() } + "."
             } catch (e: Exception) {
-                error = "Couldn't save. Check your connection and try again."
+                error = com.devreply.sdk.t("error.save")
             }
             saving = false
         }
@@ -495,19 +517,19 @@ private fun NameForm() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Kicker("Before we start", inverted = true)
+        Kicker(com.devreply.sdk.t("name.kicker"), inverted = true)
         BasicText(
-            "So the developer knows who they're talking to. Add your email to get the reply there too.",
+            com.devreply.sdk.t("name.text"),
             style = text(15.sp, FontWeight.Medium, Brand.ink),
         )
         FormField(
-            name, { name = it }, "Your name",
+            name, { name = it }, com.devreply.sdk.t("name.placeholder"),
             Modifier.focusRequester(nameFocus).testTag("devreply.profile.name"),
             KeyboardOptions(capitalization = KeyboardCapitalization.Words, keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
             KeyboardActions(onNext = { emailFocus.requestFocus() }),
         )
         FormField(
-            email, { email = it }, "Email (optional)",
+            email, { email = it }, com.devreply.sdk.t("email.optional"),
             Modifier.focusRequester(emailFocus).testTag("devreply.profile.email"),
             KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false, imeAction = ImeAction.Done),
             KeyboardActions(onDone = { save() }),
@@ -521,7 +543,7 @@ private fun NameForm() {
             enabled = !saving && name.isNotBlank(),
         ) {
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                BasicText(if (saving) "Saving…" else "Start chatting", style = text(16.sp, FontWeight.Bold, Brand.ink))
+                BasicText(if (saving) com.devreply.sdk.t("saving") else com.devreply.sdk.t("name.start"), style = text(16.sp, FontWeight.Bold, Brand.ink))
             }
         }
     }
@@ -561,9 +583,8 @@ private fun FormField(
  * long a reply usually takes (the app's own reply time, from the dashboard). Never promises who answers.
  */
 @Composable
-private fun ReceivedNotice(teamName: String, within: String, email: String?) {
-    val body = "Please allow up to $within for a reply. " +
-        (email?.let { "We'll also email you at $it." } ?: "You'll see it right here.")
+private fun ReceivedNotice(teamName: String, allow: String, email: String?) {
+    val body = "$allow " + (email?.let { com.devreply.sdk.t("notice.email", "email" to it) } ?: com.devreply.sdk.t("notice.here"))
     Row(
         Modifier
             .fillMaxWidth()
@@ -574,9 +595,9 @@ private fun ReceivedNotice(teamName: String, within: String, email: String?) {
             .testTag("devreply.notice"),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TeamAvatar(teamName, 36.dp)
+        TeamAvatar(teamName, 36.dp, imageUrl = Messenger.config.appIconUrl)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            BasicText("Thanks, we got it!", style = text(15.sp, FontWeight.Bold, Brand.ink))
+            BasicText(com.devreply.sdk.t("notice.title"), style = text(15.sp, FontWeight.Bold, Brand.ink))
             BasicText(body, style = text(14.sp, FontWeight.Medium, Brand.ink))
         }
     }
@@ -601,7 +622,7 @@ private fun EmailAskCard(done: () -> Unit) {
             } catch (e: DevReplyError.Invalid) {
                 error = (e.message ?: "invalid").replaceFirstChar { it.uppercase() } + "."
             } catch (e: Exception) {
-                error = "Couldn't save. Check your connection and try again."
+                error = com.devreply.sdk.t("error.save")
             }
             saving = false
         }
@@ -616,21 +637,21 @@ private fun EmailAskCard(done: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicText("Get the reply by email too?", Modifier.weight(1f), style = text(15.sp, FontWeight.Bold, Brand.ink))
+            BasicText(com.devreply.sdk.t("email_ask.title"), Modifier.weight(1f), style = text(15.sp, FontWeight.Bold, Brand.ink))
             BasicText(
-                "No thanks",
+                com.devreply.sdk.t("no_thanks"),
                 Modifier.clickable(onClick = done).padding(4.dp).testTag("devreply.emailask.skip"),
                 style = text(14.sp, FontWeight.Bold, Brand.muted),
             )
         }
         BasicText(
-            "Optional. Only about this conversation, and you can unsubscribe any time.",
+            com.devreply.sdk.t("email_ask.text"),
             style = text(13.sp, FontWeight.Medium, Brand.ink),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
                 FormField(
-                    email, { email = it }, "you@example.com",
+                    email, { email = it }, com.devreply.sdk.t("email_ask.placeholder"),
                     Modifier.testTag("devreply.emailask.field"),
                     KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false, imeAction = ImeAction.Done),
                     KeyboardActions(onDone = { save() }),
@@ -642,10 +663,10 @@ private fun EmailAskCard(done: () -> Unit) {
                 fill = Brand.pink,
                 shadow = 3.dp,
                 enabled = !saving && email.isNotBlank(),
-                label = "Save",
+                label = com.devreply.sdk.t("save"),
             ) {
                 Box(Modifier.height(46.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                    BasicText(if (saving) "…" else "Save", style = text(15.sp, FontWeight.Bold, Brand.ink))
+                    BasicText(if (saving) "…" else com.devreply.sdk.t("save"), style = text(15.sp, FontWeight.Bold, Brand.ink))
                 }
             }
         }
@@ -659,23 +680,46 @@ private fun EmailAskCard(done: () -> Unit) {
 @Composable
 private fun TimeLabel(at: Instant) {
     val context = LocalContext.current
-    val day = DateTimeFormatter.ofPattern("EEE", Locale.getDefault()).format(at.atZone(ZoneId.systemDefault()))
-    val time = DateFormat.getTimeFormat(context).format(Date.from(at))
+    val locale = com.devreply.sdk.L10n.javaLocale
+    val zoned = at.atZone(ZoneId.systemDefault())
+    val day = DateTimeFormatter.ofPattern("EEE", locale).format(zoned)
+    // The device's own 12/24-hour setting, unless the app picked another language.
+    val time = if (com.devreply.sdk.L10n.override == null) {
+        DateFormat.getTimeFormat(context).format(Date.from(at))
+    } else {
+        DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withLocale(locale).format(zoned)
+    }
     Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
         Kicker("$day · $time")
     }
 }
 
-/** Lays out one message: the user's on the right, the team's on the left with the avatar. */
+/** "[face] Anna · Support" above a group of replies from one persona. */
 @Composable
-private fun ChatRow(fromUser: Boolean, teamName: String, content: @Composable () -> Unit) {
+private fun PersonaLabel(persona: com.devreply.sdk.Persona) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp).testTag("devreply.persona"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TeamAvatar(persona.name, 22.dp, imageUrl = persona.avatarUrl, lineWidth = 2.dp)
+        BasicText(persona.name, style = text(13.sp, FontWeight.Bold, Brand.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (persona.title.isNotEmpty()) {
+            BasicText(persona.title, style = text(13.sp, FontWeight.Medium, Brand.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Lays out one message: the user's on the right, the team's on the left (with the app's avatar when no persona is shown). */
+@Composable
+private fun ChatRow(fromUser: Boolean, teamName: String, showAvatar: Boolean = true, content: @Composable () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = if (fromUser) 48.dp else 0.dp, end = if (fromUser) 4.dp else 48.dp),
         horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom,
     ) {
-        if (!fromUser) {
-            TeamAvatar(teamName, 30.dp, fill = Brand.lemon)
+        if (!fromUser && showAvatar) {
+            TeamAvatar(teamName, 30.dp, fill = Brand.lemon, imageUrl = Messenger.config.appIconUrl)
             Spacer(Modifier.size(10.dp))
         }
         Column(
@@ -691,14 +735,16 @@ private fun MessageRow(message: Message, teamName: String, onOpenImage: (String)
     val context = LocalContext.current
     if (message.author == Message.Author.System) {
         // e.g. "✓ Marked as resolved…": a quiet line, not a bubble.
+        // The server's own lines ("✓ Marked as resolved…") in the user's language.
+        val resolved = message.blocks.any { it is Block.Text && (it.key == "resolved" || it.text == com.devreply.sdk.L10n.LEGACY_RESOLVED) }
         BasicText(
-            message.plainText,
+            if (resolved) com.devreply.sdk.t("system.resolved") else message.plainText,
             Modifier.fillMaxWidth().padding(vertical = 6.dp),
             style = text(13.sp, FontWeight.Bold, Brand.muted).copy(textAlign = TextAlign.Center),
         )
         return
     }
-    ChatRow(message.isFromUser, teamName) {
+    ChatRow(message.isFromUser, teamName, showAvatar = message.persona == null) {
         message.blocks.forEach { block ->
             when (block) {
                 is Block.Text -> TextBubble(block.text, message.isFromUser)
@@ -706,7 +752,7 @@ private fun MessageRow(message: Message, teamName: String, onOpenImage: (String)
                 is Block.File -> BrutalButton(
                     { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(block.url))) } },
                     shadow = 3.dp,
-                    label = "File ${block.name}",
+                    label = com.devreply.sdk.t("file_named", "name" to block.name),
                 ) { FileChip(block.name, block.size) }
                 is Block.Unsupported -> TextBubble(block.fallback, message.isFromUser, muted = true)
             }
@@ -743,7 +789,7 @@ private fun PendingRow(item: ConversationModel.Pending, teamName: String, retry:
                     BasicText(item.failure, style = text(12.sp, FontWeight.Bold, Brand.error).copy(textAlign = TextAlign.End))
                 }
             } else {
-                Kicker(if (item.attachments.isEmpty()) "Sending…" else "Uploading…")
+                Kicker(if (item.attachments.isEmpty()) com.devreply.sdk.t("sending") else com.devreply.sdk.t("uploading"))
             }
         }
     }
@@ -800,7 +846,7 @@ private fun RemoteImage(url: String, width: Int?, height: Int?, onClick: () -> U
             .drawBehind { drawRect(Brand.ink, topLeft = Offset(4.dp.toPx(), 4.dp.toPx()), size = size) }
             .background(Brand.grey)
             .clickable(onClick = onClick)
-            .semantics { contentDescription = "Photo" },
+            .semantics { contentDescription = com.devreply.sdk.t("open_photo") },
         contentAlignment = Alignment.Center,
     ) {
         val loaded = image
@@ -822,7 +868,7 @@ private fun ImageViewer(url: String, close: () -> Unit) {
             val loaded = image
             if (loaded != null) {
                 Image(
-                    loaded, "Photo",
+                    loaded, com.devreply.sdk.t("photo"),
                     Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) { detectTransformGestures { _, _, z, _ -> zoom = (zoom * z).coerceIn(1f, 5f) } }
@@ -833,7 +879,7 @@ private fun ImageViewer(url: String, close: () -> Unit) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
             }
             IconSquareButton(
-                R.drawable.devreply_ic_close, "Close", close,
+                R.drawable.devreply_ic_close, com.devreply.sdk.t("close_photo"), close,
                 Modifier.align(Alignment.TopEnd).systemBarsPadding().padding(20.dp), fill = Brand.lemon,
             )
         }

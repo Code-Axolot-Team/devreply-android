@@ -12,6 +12,7 @@ internal data class DeviceInfo(val deviceModel: String, val osVersion: String, v
         .put("os_version", osVersion)
         .put("app_version", appVersion.take(100))
         .put("sdk_version", DEVREPLY_SDK_VERSION)
+        .put("locale", L10n.tag)
 
     companion object {
         fun current(context: Context): DeviceInfo {

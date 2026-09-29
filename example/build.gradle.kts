@@ -19,6 +19,9 @@ android {
         // or `devreply.pk=pk_…` in ~/.gradle/gradle.properties.
         val pk = (project.findProperty("devreply.pk") as String?) ?: "pk_YOUR_PUBLIC_KEY"
         buildConfigField("String", "DEVREPLY_PK", "\"$pk\"")
+        // Only for testing against a local server: -Pdevreply.api=http://localhost:8081 (with `adb reverse`).
+        val api = (project.findProperty("devreply.api") as String?) ?: "https://api.devreply.com"
+        buildConfigField("String", "DEVREPLY_API", "\"$api\"")
     }
     buildTypes {
         release {

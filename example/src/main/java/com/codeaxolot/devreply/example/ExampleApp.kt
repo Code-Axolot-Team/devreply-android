@@ -7,7 +7,7 @@ class ExampleApp : Application() {
     override fun onCreate() {
         super.onCreate()
         // Android public key of the app in the DevReply dashboard. Safe to ship.
-        DevReply.configure(this, BuildConfig.DEVREPLY_PK)
+        DevReply.configure(this, BuildConfig.DEVREPLY_PK, BuildConfig.DEVREPLY_API)
         // What the app knows about this user shows up next to them in the dashboard.
         DevReply.setAttributes(mapOf("demo_app" to true, "build" to BuildConfig.VERSION_CODE))
     }

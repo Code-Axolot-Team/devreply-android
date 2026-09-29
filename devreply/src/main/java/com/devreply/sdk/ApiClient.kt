@@ -59,6 +59,16 @@ internal class ApiClient(val baseUrl: String) {
     suspend fun sendMessage(token: String, conversation: UUID, text: String, attachments: List<String>): Message =
         Message.parse(send("POST", "v1/conversations/$conversation/messages", token, messageBody(text, null, attachments)) as JSONObject)
 
+    /** The chat's language changed (setLocale, or the device's): the team sees it next to the user. */
+    suspend fun updateLocale(token: String, locale: String) {
+        send("PATCH", "v1/install", token, JSONObject().put("locale", locale))
+    }
+
+    /** The app opened a DevReply link: the dashboard shows the deep link works. */
+    suspend fun deepLinkOpened(token: String) {
+        send("POST", "v1/deep_link_opened", token)
+    }
+
     suspend fun profile(token: String): Profile = Profile.parse(send("GET", "v1/me", token) as JSONObject)
 
     suspend fun updateProfile(

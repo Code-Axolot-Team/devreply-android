@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Version of this SDK. Sent on install registration and compared with each block's `min_sdk`. */
-public const val DEVREPLY_SDK_VERSION: String = "0.3.2"
+public const val DEVREPLY_SDK_VERSION: String = "0.4.0"
 
 /** What a conversation is about. Set by the start button the user picked (spec 05). */
 public enum class DevReplyCategory(internal val wire: String) {
@@ -39,6 +39,18 @@ internal fun JSONObject.int(key: String): Int? = (opt(key) as? Number)?.toInt()
 /** RFC 3339 with or without fractional seconds (the server sends microseconds). */
 internal fun parseRfc3339(s: String): Instant? = runCatching { OffsetDateTime.parse(s).toInstant() }.getOrNull()
 
+/** Who users see replying: a teammate or a shared persona (spec 05, 0.4.0). */
+internal data class Persona(val name: String, val title: String, val avatarUrl: String?) {
+    companion object {
+        /** Null when there's no usable name: the message then shows without a label, as before 0.4. */
+        fun parse(json: JSONObject?): Persona? {
+            if (json == null) return null
+            val name = json.str("name")?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            return Persona(name, json.str("title")?.trim() ?: "", json.str("avatar_url")?.takeIf { it.isNotBlank() })
+        }
+    }
+}
+
 internal data class MessengerConfig(
     val appName: String,
     val teamName: String,
@@ -48,6 +60,14 @@ internal data class MessengerConfig(
     /** What goes after "Please allow up to": "3 working days", "an hour". Set per app in the dashboard. */
     val replyWithin: String,
     val startButtons: List<StartButton>,
+    /** The app's icon, uploaded in the dashboard. Null: initials. */
+    val appIconUrl: String? = null,
+    /** Teammates with a photo, shown on the home screen (up to 3). */
+    val team: List<Persona> = emptyList(),
+    /** Fields still at DevReply's defaults: shown in the user's language (0.4). */
+    val localize: Set<String> = emptySet(),
+    /** The reply-time preset, e.g. `3_working_days`: translated (0.4). */
+    val replyWithinKey: String? = null,
 ) {
     data class StartButton(val category: DevReplyCategory, val emoji: String, val title: String)
 
@@ -62,6 +82,8 @@ internal data class MessengerConfig(
             replyWithin = "3 working days",
             startButtons = listOf(DevReplyCategory.Bug, DevReplyCategory.Billing, DevReplyCategory.Idea, DevReplyCategory.Question)
                 .map { StartButton(it, "", it.defaultTitle) },
+            localize = setOf("greeting", "intro", "start_buttons", "reply_time", "reply_within"),
+            replyWithinKey = "3_working_days",
         )
 
         /** Every field is optional on the wire; missing ones fall back to the placeholder. */
@@ -83,6 +105,12 @@ internal data class MessengerConfig(
                 replyTime = json.str("reply_time") ?: d.replyTime,
                 replyWithin = json.str("reply_within") ?: d.replyWithin,
                 startButtons = buttons ?: d.startButtons,
+                appIconUrl = json.str("app_icon_url")?.takeIf { it.isNotBlank() },
+                team = json.optJSONArray("team").lossy { Persona.parse(it) ?: error("no name") }.take(3),
+                // A server before 0.4 sends neither: its English texts are shown as they are.
+                localize = json.optJSONArray("localize")?.let { a -> (0 until a.length()).mapNotNull { a.opt(it) as? String }.toSet() }
+                    ?: emptySet(),
+                replyWithinKey = json.str("reply_within_key"),
             )
         }
     }
@@ -117,6 +145,8 @@ internal data class Message(
     val author: Author,
     val blocks: List<Block>,
     val createdAt: Instant,
+    /** Who replied (team messages from 0.4 on). Null: no label. */
+    val persona: Persona? = null,
 ) {
     enum class Author { User, Admin, Agent, System }
 
@@ -137,6 +167,7 @@ internal data class Message(
                 else -> Author.System
             },
             blocks = json.optJSONArray("blocks").lossy(Block::parse),
+            persona = if (json.str("author") == "user") null else runCatching { Persona.parse(json.optJSONObject("persona")) }.getOrNull(),
         )
     }
 }
@@ -146,7 +177,8 @@ internal data class Message(
  * plain text instead of failing, so old SDKs never break.
  */
 internal sealed interface Block {
-    data class Text(val text: String) : Block
+    /** [key]: a text the SDK says in the user's language (`resolved`), from 0.4 servers. */
+    data class Text(val text: String, val key: String? = null) : Block
     data class Image(val url: String, val width: Int?, val height: Int?) : Block
     data class File(val url: String, val name: String, val size: Int?, val mime: String?) : Block
     data class Unsupported(val fallback: String) : Block
@@ -154,21 +186,21 @@ internal sealed interface Block {
     val plainText: String
         get() = when (this) {
             is Text -> text
-            is Image -> "Photo"
+            is Image -> t("photo")
             is File -> name
             is Unsupported -> fallback
         }
 
     companion object {
         fun parse(json: JSONObject): Block {
-            val fallback = json.str("fallback") ?: "This message needs a newer version of the app."
+            val fallback = json.str("fallback") ?: t("unsupported")
             val minSdk = json.str("min_sdk")
             if (minSdk != null && isVersion(DEVREPLY_SDK_VERSION, olderThan = minSdk)) return Unsupported(fallback)
             return when (json.str("type")) {
-                "text" -> Text(json.str("text") ?: fallback)
-                "image" -> json.str("url")?.let { Image(it, json.int("width"), json.int("height")) } ?: Unsupported("Photo")
+                "text" -> Text(json.str("text") ?: fallback, json.str("key"))
+                "image" -> json.str("url")?.let { Image(it, json.int("width"), json.int("height")) } ?: Unsupported(t("photo"))
                 "file" -> json.str("url")?.let {
-                    File(it, json.str("name") ?: "File", json.int("size"), json.str("mime"))
+                    File(it, json.str("name") ?: t("file"), json.int("size"), json.str("mime"))
                 } ?: Unsupported(fallback)
                 else -> Unsupported(fallback)
             }

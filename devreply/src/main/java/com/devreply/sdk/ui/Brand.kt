@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -87,23 +89,9 @@ internal val DevReplyCategory.icon: Int
         DevReplyCategory.Other -> R.drawable.devreply_category_other
     }
 
-internal val DevReplyCategory.defaultTitle: String
-    get() = when (this) {
-        DevReplyCategory.Bug -> "Something's broken"
-        DevReplyCategory.Billing -> "Billing or subscription"
-        DevReplyCategory.Idea -> "I have an idea"
-        DevReplyCategory.Question -> "Question"
-        DevReplyCategory.Other -> "Message"
-    }
+internal val DevReplyCategory.defaultTitle: String get() = com.devreply.sdk.t("category.$wire")
 
-internal val DevReplyCategory.prompt: String
-    get() = when (this) {
-        DevReplyCategory.Bug -> "What happened, and what did you expect instead? A screenshot helps a lot."
-        DevReplyCategory.Billing -> "Tell us what's wrong with your purchase or subscription."
-        DevReplyCategory.Idea -> "What would make the app better for you?"
-        DevReplyCategory.Question -> "What would you like to know?"
-        DevReplyCategory.Other -> "How can we help?"
-    }
+internal val DevReplyCategory.prompt: String get() = com.devreply.sdk.t("prompt.$wire")
 
 // The brutal look: ink outline + hard offset shadow.
 
@@ -188,25 +176,46 @@ internal fun IconSquareButton(
 
 /** The team's avatar: initials on a square, ink outline. */
 @Composable
-internal fun TeamAvatar(name: String, size: Dp, fill: Color = Color.White) {
+internal fun TeamAvatar(
+    name: String,
+    size: Dp,
+    fill: Color = Color.White,
+    imageUrl: String? = null,
+    lineWidth: Dp = 2.5.dp,
+    modifier: Modifier = Modifier,
+) {
+    // A photo or the app's icon when there is one (loaded once, kept in memory), initials meanwhile
+    // and as the fallback.
+    val image by produceState(imageUrl?.let { ImageCache.cached(it) }, imageUrl) {
+        value = imageUrl?.let { ImageCache.image(it) }
+    }
     val initials = name.split(" ").filter { it.isNotEmpty() }.take(2).joinToString("") { it.take(1) }
     Box(
-        Modifier.size(size).background(fill).border(2.5.dp, Brand.ink),
+        modifier.size(size).background(fill).border(lineWidth, Brand.ink),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText(
-            initials.ifEmpty { "DR" }.uppercase(),
-            style = display((size.value * 0.4f).sp, Brand.ink).copy(lineHeight = (size.value * 0.4f).sp),
-        )
+        val bitmap = image
+        if (bitmap != null) {
+            Image(
+                bitmap, name,
+                Modifier.size(size).padding(lineWidth),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            BasicText(
+                initials.ifEmpty { "DR" }.uppercase(),
+                style = display((size.value * 0.4f).sp, Brand.ink).copy(lineHeight = (size.value * 0.4f).sp),
+            )
+        }
     }
 }
 
 @Composable
 internal fun ErrorNote(error: DevReplyError, retry: () -> Unit) {
     val message = when (error) {
-        DevReplyError.Network -> "You seem to be offline."
-        DevReplyError.InvalidPublicKey -> "This app's DevReply key isn't valid."
-        else -> "Something went wrong."
+        DevReplyError.Network -> com.devreply.sdk.t("error.offline")
+        DevReplyError.InvalidPublicKey -> com.devreply.sdk.t("error.key")
+        else -> com.devreply.sdk.t("error.generic")
     }
     Column(
         Modifier.fillMaxWidth().brutal(shadow = 0.dp).padding(16.dp),
@@ -215,7 +224,7 @@ internal fun ErrorNote(error: DevReplyError, retry: () -> Unit) {
         BasicText(message, style = text(15.sp, FontWeight.Medium))
         BrutalButton(retry, fill = Brand.pink, shadow = 4.dp) {
             BasicText(
-                "Try again",
+                com.devreply.sdk.t("try_again"),
                 Modifier.padding(horizontal = 16.dp, vertical = 10.dp).sizeIn(minHeight = 20.dp),
                 style = text(15.sp, FontWeight.Bold),
             )

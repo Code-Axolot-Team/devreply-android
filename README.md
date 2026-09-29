@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Code-Axolot-Team:devreply-android:0.3.2")
+    implementation("com.github.Code-Axolot-Team:devreply-android:0.4.0")
 }
 ```
 
@@ -49,9 +49,46 @@ DevReply.present(context)             // or present(context, DevReplyCategory.Bu
 DevReply.setUser("Ana", "ana@example.com")
 DevReply.setAttributes(mapOf("plan" to "pro", "trial" to false))
 DevReply.showsUnreadBubble = false    // if you show DevReply.unreadCount (Compose state) yourself
+DevReply.setLocale("es")              // your app's own language setting; null follows the device
 ```
 
+Each reply shows who wrote it (the teammate's name, title and photo) and the header shows your app icon. The chat
+speaks the device's language (15 languages: English, Spanish, Portuguese, French, German, Italian, Dutch, Polish,
+Russian, Ukrainian, Turkish, Greek, Japanese, Korean, Chinese).
+
 Never put a secret key (`sk_…`) in an app.
+
+### Open the chat from DevReply's emails (deep link)
+
+Users who gave their email get your replies by email, with a "Reply in the app" button. It opens
+`yourapp://devreply?devreply=<conversation>`; pass the link to DevReply and the chat opens on that
+conversation. Set the same deep link in the dashboard (app → Settings → Emails to your users); it shows
+"✓ Working" once your app has opened one.
+
+```xml
+<!-- AndroidManifest.xml, on the activity that should open (launchMode singleTop recommended) -->
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="yourapp" android:host="devreply" />
+</intent-filter>
+```
+
+```kotlin
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    intent?.data?.let { DevReply.handle(this, it) }   // true when it was DevReply's link
+}
+
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    intent.data?.let { DevReply.handle(this, it) }
+}
+```
+
+Who replied (the teammate's name, title and photo), your app icon and your team's faces come from the
+dashboard; nothing to set up in the app.
 
 ## Build, example app and tests
 

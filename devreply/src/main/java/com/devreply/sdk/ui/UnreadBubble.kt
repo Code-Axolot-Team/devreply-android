@@ -189,8 +189,12 @@ private fun Bubble(count: Int, teamName: String, open: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val shift = if (pressed) 3.dp else 0.dp
-    val who = teamName.ifEmpty { "the team" }
-    val label = if (count == 1) "New reply from $who" else "$count new replies from $who"
+    val who = teamName.ifEmpty { com.devreply.sdk.t("team") }
+    val label = if (count == 1) {
+        com.devreply.sdk.t("launcher.one", "team" to who)
+    } else {
+        com.devreply.sdk.t("launcher.many", "team" to who, "count" to count)
+    }
 
     Box(
         Modifier
@@ -221,7 +225,7 @@ private fun Bubble(count: Int, teamName: String, open: () -> Unit) {
                 contentDescription = label
                 role = Role.Button
                 testTag = "devreply.bubble"
-                onClick("Open the chat") { open(); true }
+                onClick(com.devreply.sdk.t("bubble.open")) { open(); true }
             },
     ) {
         // Lemon circle, ink outline, hard shadow; presses down into the shadow like the brand's buttons.
