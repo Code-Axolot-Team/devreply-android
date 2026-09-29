@@ -203,7 +203,7 @@ class PersonaTest {
     }
 
     @Test fun sdkVersionIs040() {
-        assertEquals("0.4.2", DEVREPLY_SDK_VERSION)
+        assertEquals("0.4.3", DEVREPLY_SDK_VERSION)
     }
 }
 

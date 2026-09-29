@@ -47,6 +47,11 @@ internal object PushManager {
         if (Messenger.client != null) Messenger.scope.launch { sendTokenIfNeeded() }
     }
 
+    /** After a logout the device gets a new install: send the token to it again. */
+    fun forgetSentToken() {
+        sentToken = null
+    }
+
     /** Sends the token once the install exists; called again after `configure`. */
     suspend fun sendTokenIfNeeded() {
         val token = token ?: Messenger.context?.let { prefs(it).getString("token", null) }?.also { token = it } ?: return
@@ -98,6 +103,7 @@ internal object PushManager {
     private fun openIntent(context: Context, id: UUID): PendingIntent {
         val chat = Intent(context, DevReplyActivity::class.java)
             .putExtra(DevReplyActivity.EXTRA_CONVERSATION, id.toString())
+            .putExtra(DevReplyActivity.EXTRA_FROM_PUSH, true)
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
         val intents = if (launch != null) {
             arrayOf(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), chat)
@@ -107,6 +113,29 @@ internal object PushManager {
         return PendingIntent.getActivities(
             context, id.hashCode(), intents, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+    }
+
+    /**
+     * A DevReply notification was tapped where the app handles taps itself (its push library showed it):
+     * opens the conversation. DevReply's own notifications open it by themselves.
+     */
+    fun open(context: Context, data: Map<String, String>): Boolean {
+        val id = conversationId(data) ?: return false
+        val intent = Intent(context, DevReplyActivity::class.java)
+            .putExtra(DevReplyActivity.EXTRA_CONVERSATION, id.toString())
+            .putExtra(DevReplyActivity.EXTRA_FROM_PUSH, true)
+        if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+        return true
+    }
+
+    private var reportedOpen = false
+
+    /** Once per launch: taps reach the conversation (Settings and the setup status show it). */
+    fun reportOpened() {
+        if (reportedOpen || Messenger.client == null) return
+        reportedOpen = true
+        Messenger.scope.launch { runCatching { Messenger.authorized { api, t -> api.pushOpened(t) } } }
     }
 
     /** A reply for this conversation is on screen: clear its notification. */

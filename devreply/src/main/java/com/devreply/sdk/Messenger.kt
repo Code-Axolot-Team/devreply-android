@@ -72,8 +72,12 @@ internal object Messenger {
         val appName = app.applicationInfo.loadLabel(app.packageManager).toString()
         config = cachedConfig(app, publicKey, appName) ?: MessengerConfig.placeholder(appName)
         (app as? android.app.Application)?.let { AppWatcher.start(it, context as? android.app.Activity) }
+        // Signed in as someone else than this install's user (the app called login before configure).
+        val stored = account?.let { tokens?.token("user|$it") }
+        if (hostUserId != null && stored != null && stored != hostUserId) forgetInstall()
         // Register early so the first open is instant, and pick up unread replies.
         scope.launch {
+            sendUserId()
             hostUser?.let { (name, email) -> runCatching { saveProfile(name, email) } }
             flushAttributes()
             refresh()
@@ -202,6 +206,87 @@ internal object Messenger {
     // Name, email and attributes from the host app, applied once the install exists.
     private var hostUser: Pair<String?, String?>? = null
     private val pendingAttributes = mutableMapOf<String, Any?>()
+
+    // ---- signed-in user (spec 03) ----
+
+    /** The app's id for the signed-in user (`DevReply.login`). */
+    private var hostUserId: String? = null
+
+    fun login(userId: String) {
+        val id = userId.trim().takeIf { it.isNotEmpty() } ?: return
+        // Another person on this device: they start from a new, empty install.
+        val stored = account?.let { tokens?.token("user|$it") }
+        if (stored != null && stored != id) logout()
+        hostUserId = id
+        if (client == null) return
+        scope.launch { sendUserId() }
+    }
+
+    /**
+     * Labels this install's user with the app's id. The server refuses another id for the same user
+     * (409): then this install belonged to someone else, so start a new one.
+     */
+    private suspend fun sendUserId(retry: Boolean = true) {
+        val id = hostUserId ?: return
+        val account = account ?: return
+        try {
+            profile = authorized { api, t -> api.updateProfile(t, null, null, userId = id) }
+            withContext(Dispatchers.IO) { tokens?.setToken(id, "user|$account") }
+        } catch (e: DevReplyError.Server) {
+            if (e.status == 409 && retry) {
+                logout(keepUserId = true)
+                sendUserId(retry = false)
+            }
+        } catch (e: Exception) {
+        }
+    }
+
+    /**
+     * `DevReply.logout()`: the server stops accepting this install (and its push token), the device
+     * forgets it, and the next person starts from a new, empty install. Conversations stay for the team.
+     */
+    fun logout(keepUserId: Boolean = false) {
+        val api = client
+        val token = account?.let { tokens?.token(it) }
+        if (api != null && token != null) scope.launch { runCatching { withContext(Dispatchers.IO) { api.logout(token) } } }
+        val id = hostUserId
+        forgetInstall()
+        if (keepUserId) hostUserId = id
+        if (client == null) return
+        scope.launch {
+            refresh()
+            PushManager.sendTokenIfNeeded()
+        }
+    }
+
+    /** `DevReply.deleteUser()`: deletes the user's data on the server, then forgets the install. */
+    suspend fun deleteUser(): Boolean {
+        if (client == null) return false
+        val ok = runCatching { authorized { api, t -> api.deleteUser(t) } }.isSuccess
+        if (!ok) return false
+        forgetInstall()
+        scope.launch {
+            refresh()
+            PushManager.sendTokenIfNeeded()
+        }
+        return true
+    }
+
+    /** Everything this device knew about the user: the token, who they were, their chats on screen. */
+    private fun forgetInstall() {
+        account?.let {
+            tokens?.deleteToken(it)
+            tokens?.deleteToken("user|$it")
+        }
+        cachedToken = null
+        hostUserId = null
+        hostUser = null
+        pendingAttributes.clear()
+        conversations = emptyList()
+        profile = null
+        PushManager.forgetSentToken()
+        com.devreply.sdk.ui.DevReplyActivity.current?.get()?.finish()
+    }
 
     fun setUser(name: String?, email: String?) {
         hostUser = name to email

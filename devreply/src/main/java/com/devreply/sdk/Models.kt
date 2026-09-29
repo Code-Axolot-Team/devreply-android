@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Version of this SDK. Sent on install registration and compared with each block's `min_sdk`. */
-public const val DEVREPLY_SDK_VERSION: String = "0.4.2"
+public const val DEVREPLY_SDK_VERSION: String = "0.4.3"
 
 /** What a conversation is about. Set by the start button the user picked (spec 05). */
 public enum class DevReplyCategory(internal val wire: String) {

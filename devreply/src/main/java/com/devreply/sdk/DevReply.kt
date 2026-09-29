@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.ui.graphics.Color
 import com.devreply.sdk.ui.Brand
 import com.devreply.sdk.ui.DevReplyActivity
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
@@ -29,6 +30,40 @@ public object DevReply {
     @JvmOverloads
     public fun configure(context: Context, publicKey: String, apiUrl: String = DEFAULT_API_URL) {
         Messenger.configure(context, publicKey, apiUrl)
+    }
+
+    /**
+     * After your user signs in: your own id for them (never an email or anything secret). The team sees
+     * it next to the user, and your backend can delete the user by it. If another user was signed in on
+     * this device, DevReply logs them out first, so nobody sees someone else's chats.
+     */
+    @JvmStatic
+    public fun login(userId: String) {
+        Messenger.login(userId)
+    }
+
+    /**
+     * When your user signs out: DevReply forgets this device's chats, and the next person starts empty.
+     * Their conversations stay with your team. Call it on every sign-out (and account switch).
+     */
+    @JvmStatic
+    public fun logout() {
+        Messenger.logout()
+    }
+
+    /**
+     * When your user deletes their account: deletes their name, email, attributes, conversations,
+     * messages and files from DevReply, then logs out. Returns false if DevReply couldn't be reached; try
+     * again, or delete from your backend (`DELETE /v1/project/users?user_id=…` with a secret key).
+     */
+    public suspend fun deleteUser(): Boolean = Messenger.deleteUser()
+
+    /**
+     * [deleteUser] for Java and callbacks: [done] runs on the main thread with the result.
+     */
+    @JvmStatic
+    public fun deleteUser(done: (Boolean) -> Unit) {
+        Messenger.scope.launch { done(Messenger.deleteUser()) }
     }
 
     /** Tells DevReply who the user is, if your app knows. With a name set, the chat doesn't ask for one. */
@@ -168,6 +203,14 @@ public object DevReply {
      */
     @JvmStatic
     public fun handlePush(context: Context, data: Map<String, String>): Boolean = PushManager.handle(context, data)
+
+    /**
+     * A DevReply notification the user tapped, when your app's push library showed it (`data` as that
+     * library passes it on): opens the conversation. Returns false for your own notifications. Not
+     * needed for the notifications [handlePush] shows: those open the conversation by themselves.
+     */
+    @JvmStatic
+    public fun handleNotificationOpened(context: Context, data: Map<String, String>): Boolean = PushManager.open(context, data)
 
     /** Fetches unread replies, e.g. when the app returns to the foreground. */
     public suspend fun refresh() {

@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Code-Axolot-Team:devreply-android:0.4.0")
+    implementation("com.github.Code-Axolot-Team:devreply-android:0.4.3")
 }
 ```
 
@@ -114,6 +114,38 @@ FirebaseMessaging.getInstance().token.addOnSuccessListener { DevReply.registerPu
 Then upload the Firebase service account in the dashboard (app → Settings → Push notifications (Android)):
 Firebase console → Project settings → Service accounts → Generate new private key. To use your own
 notification icon, add a white-on-transparent drawable named `devreply_push_icon`.
+
+If your app's own code or a library (notifee…) shows DevReply's notifications instead of `handlePush`, pass the
+tapped notification's data on: `DevReply.handleNotificationOpened(context, data)` (false for your own). The
+dashboard's push card shows "✓ Taps open the chat" once a tap opened a conversation.
+
+## Sign-in, sign-out and account deletion
+
+If your app has accounts:
+
+```kotlin
+DevReply.login(account.id)             // after sign-in: your own id for the user, never an email or a secret
+DevReply.logout()                      // on every sign-out and account switch
+val ok = DevReply.deleteUser()         // suspend, in your delete-account flow; false if DevReply couldn't be reached
+DevReply.deleteUser { ok -> }          // the same with a callback (Java)
+```
+
+- `login` labels the user for your team (the dashboard shows it as "User ID (your app)") and lets your backend
+  delete them by it. It doesn't merge chats across devices: the id isn't verified, so it never gives one device
+  another's conversations. If another id was signed in on this device, DevReply logs out first.
+- `logout` revokes this install and its push token; the device forgets the chat and the next person starts empty.
+  The conversations stay with your team.
+- `deleteUser` deletes the user's name, email, attributes, conversations, messages and files, then logs out.
+
+Your backend can delete a user too, with a read-and-write secret key (never in an app):
+
+```sh
+curl -X DELETE "https://api.devreply.com/v1/project/users?user_id=<your id>" \
+  -H "Authorization: Bearer $DEVREPLY_SECRET_KEY"
+# {"deleted": 1}: every DevReply user with that id, on every device. ?id=<DevReply's user id> for one user.
+```
+
+Your team can also delete a user in the dashboard (the inbox's user panel → Delete user).
 
 ## Build, example app and tests
 

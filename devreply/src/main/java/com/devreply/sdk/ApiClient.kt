@@ -69,6 +69,21 @@ internal class ApiClient(val baseUrl: String) {
         send("PATCH", "v1/install", token, JSONObject().put("push_token", pushToken))
     }
 
+    /** `DevReply.logout()`: this install's token and push token stop working. */
+    suspend fun logout(token: String) {
+        send("POST", "v1/logout", token)
+    }
+
+    /** `DevReply.deleteUser()`: the user's personal data, conversations and files are deleted. */
+    suspend fun deleteUser(token: String) {
+        send("DELETE", "v1/me", token)
+    }
+
+    /** A tap on a DevReply notification opened its conversation: the dashboard shows taps work. */
+    suspend fun pushOpened(token: String) {
+        send("POST", "v1/push_opened", token)
+    }
+
     /** The app opened a DevReply link: the dashboard shows the deep link works. */
     suspend fun deepLinkOpened(token: String) {
         send("POST", "v1/deep_link_opened", token)
@@ -77,11 +92,12 @@ internal class ApiClient(val baseUrl: String) {
     suspend fun profile(token: String): Profile = Profile.parse(send("GET", "v1/me", token) as JSONObject)
 
     suspend fun updateProfile(
-        token: String, name: String?, email: String?, attributes: Map<String, Any?> = emptyMap(),
+        token: String, name: String?, email: String?, attributes: Map<String, Any?> = emptyMap(), userId: String? = null,
     ): Profile {
         val body = JSONObject()
         if (name != null) body.put("name", name)
         if (email != null) body.put("email", email)
+        if (userId != null) body.put("user_id", userId)
         // null values reach the server as JSON null (= remove the attribute).
         body.put("attributes", attributesJson(attributes))
         return Profile.parse(send("PATCH", "v1/me", token, body) as JSONObject)

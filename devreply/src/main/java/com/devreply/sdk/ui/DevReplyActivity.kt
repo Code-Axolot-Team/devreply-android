@@ -49,8 +49,10 @@ internal class DevReplyActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         Messenger.restore(this)
+        if (intent.getBooleanExtra(EXTRA_FROM_PUSH, false)) com.devreply.sdk.PushManager.reportOpened()
         val category = intent.getStringExtra(EXTRA_CATEGORY)?.let { raw -> DevReplyCategory.entries.firstOrNull { it.wire == raw } }
         val conversation = intent.getStringExtra(EXTRA_CONVERSATION)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        current = java.lang.ref.WeakReference(this)
         setContent { MessengerScreen(start = category, conversation = conversation, close = ::finish) }
     }
 
@@ -63,6 +65,10 @@ internal class DevReplyActivity : ComponentActivity() {
     internal companion object {
         const val EXTRA_CATEGORY = "com.devreply.sdk.category"
         const val EXTRA_CONVERSATION = "com.devreply.sdk.conversation"
+        const val EXTRA_FROM_PUSH = "com.devreply.sdk.from_push"
+
+        /** The open messenger, if any: closed when the user logs out. */
+        var current: java.lang.ref.WeakReference<DevReplyActivity>? = null
     }
 }
 
