@@ -48,9 +48,16 @@ internal class DevReplyActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        Messenger.restore(this)
         val category = intent.getStringExtra(EXTRA_CATEGORY)?.let { raw -> DevReplyCategory.entries.firstOrNull { it.wire == raw } }
         val conversation = intent.getStringExtra(EXTRA_CONVERSATION)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         setContent { MessengerScreen(start = category, conversation = conversation, close = ::finish) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Back from the notification settings or the permission dialog.
+        com.devreply.sdk.PushManager.recheck()
     }
 
     internal companion object {

@@ -104,6 +104,7 @@ import com.devreply.sdk.DevReplyCategory
 import com.devreply.sdk.DevReplyError
 import com.devreply.sdk.Message
 import com.devreply.sdk.Messenger
+import com.devreply.sdk.PushManager
 import com.devreply.sdk.R
 import com.devreply.sdk.replyAllowText
 import com.devreply.sdk.replyTimeText
@@ -154,8 +155,11 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
             delay(3_000)
         }
     }
+    val appContext = LocalContext.current.applicationContext
     DisposableEffect(model.conversationId) {
         Messenger.visibleConversation = model.conversationId
+        // On screen now: its notification has done its job.
+        model.conversationId?.let { PushManager.clear(appContext, it) }
         onDispose { Messenger.visibleConversation = null }
     }
     LaunchedEffect(model.sentCount) {
@@ -256,7 +260,12 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
             else -> Column {
                 val showsEmailAsk = startedHere && !emailAskDone && Messenger.profile?.email.isNullOrBlank() &&
                     model.messages.any { it.isFromUser }
-                if (showsEmailAsk) EmailAskCard { emailAskDone = true }
+                // One card at a time: the email ask first, then notifications.
+                if (showsEmailAsk) {
+                    EmailAskCard { emailAskDone = true }
+                } else if (model.messages.any { it.isFromUser }) {
+                    PushManager.askState(LocalContext.current)?.let { PushAskCard(it, config.teamName) }
+                }
                 Composer(autoFocus = model.conversationId == null) { text, staged -> model.send(text, staged) }
             }
         }
@@ -671,6 +680,70 @@ private fun EmailAskCard(done: () -> Unit) {
             }
         }
         error?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, Brand.error)) }
+    }
+}
+
+/**
+ * After the user's first message, when the app forwards pushes but notifications are off: "Turn on"
+ * (Android 13+ asks for the permission), or "Open Settings" once they said no. "Not now" hides it for 3 days.
+ */
+@Composable
+private fun PushAskCard(state: PushManager.AskState, teamName: String) {
+    val context = LocalContext.current
+    val who = teamName.ifEmpty { com.devreply.sdk.t("team") }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        PushManager.asked(context)
+    }
+    val first = state == PushManager.AskState.FirstAsk
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Brand.lemon)
+            .drawBehind { drawRect(Brand.ink, size = size.copy(height = 3.dp.toPx())) }
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier.size(40.dp).background(androidx.compose.ui.graphics.Color.White).border(2.dp, Brand.ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(painterResource(R.drawable.devreply_ic_bell), null, Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            BasicText(
+                com.devreply.sdk.t(if (first) "push.title" else "push.off_title"),
+                style = text(15.sp, FontWeight.Bold, Brand.ink),
+            )
+            BasicText(
+                com.devreply.sdk.t(if (first) "push.text" else "push.off_text", "team" to who),
+                style = text(14.sp, FontWeight.Medium, Brand.ink),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                val label = com.devreply.sdk.t(if (first) "push.turn_on" else "push.open_settings")
+                BrutalButton(
+                    {
+                        if (first && android.os.Build.VERSION.SDK_INT >= 33) {
+                            permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            (context as? android.app.Activity)?.let(PushManager::openSettings)
+                        }
+                    },
+                    Modifier.testTag("devreply.push.enable"),
+                    fill = Brand.pink,
+                    shadow = 3.dp,
+                    label = label,
+                ) {
+                    Box(Modifier.height(40.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                        BasicText(label, style = text(15.sp, FontWeight.Bold, Brand.ink))
+                    }
+                }
+                BasicText(
+                    com.devreply.sdk.t("push.not_now"),
+                    Modifier.clickable { PushManager.notNow(context) }.padding(4.dp).testTag("devreply.push.notnow"),
+                    style = text(14.sp, FontWeight.Bold, Brand.muted),
+                )
+            }
+        }
     }
 }
 

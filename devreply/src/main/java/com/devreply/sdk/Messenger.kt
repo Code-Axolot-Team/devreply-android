@@ -24,6 +24,7 @@ internal object Messenger {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var appContext: Context? = null
+    val context: Context? get() = appContext
     private var publicKey: String? = null
     var client: ApiClient? = null
         private set
@@ -53,7 +54,15 @@ internal object Messenger {
 
     fun configure(context: Context, publicKey: String, apiUrl: String) {
         val app = context.applicationContext
+        // Configured already with the same key (the messenger started itself from a notification, then
+        // the app's own code ran): keep the state, only follow the app's screens.
+        if (client != null && publicKey == this.publicKey && apiUrl == client?.baseUrl) {
+            (app as? android.app.Application)?.let { AppWatcher.start(it, context as? android.app.Activity) }
+            return
+        }
         appContext = app
+        app.getSharedPreferences("devreply", Context.MODE_PRIVATE).edit()
+            .putString("last_key", publicKey).putString("last_api", apiUrl).apply()
         if (publicKey != this.publicKey) backoff = RegistrationBackoff()
         this.publicKey = publicKey
         client = ApiClient(apiUrl)
@@ -69,7 +78,20 @@ internal object Messenger {
             flushAttributes()
             refresh()
             syncLocale()
+            PushManager.sendTokenIfNeeded()
         }
+    }
+
+    /**
+     * The messenger opened before the app configured DevReply (a notification tap starts the app and the
+     * messenger together; React Native and Flutter configure from their own code a moment later): use
+     * the key the app configured last time.
+     */
+    fun restore(context: Context) {
+        if (client != null) return
+        val prefs = context.applicationContext.getSharedPreferences("devreply", Context.MODE_PRIVATE)
+        val key = prefs.getString("last_key", null) ?: return
+        configure(context, key, prefs.getString("last_api", null) ?: DevReply.DEFAULT_API_URL)
     }
 
     /** The app's language choice ([DevReply.setLocale]); null follows the device. */

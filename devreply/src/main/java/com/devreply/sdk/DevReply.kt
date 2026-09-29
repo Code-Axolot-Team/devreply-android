@@ -134,6 +134,41 @@ public object DevReply {
     @JvmStatic
     public val locale: String? get() = L10n.override
 
+    /**
+     * Push notifications for replies, like Intercom: your app keeps its own Firebase Cloud Messaging
+     * setup and passes DevReply the device's FCM token, at launch and whenever it changes. Upload the
+     * Firebase service account in the dashboard (app → Settings → Push notifications (Android)).
+     *
+     * ```kotlin
+     * class MessagingService : FirebaseMessagingService() {
+     *     override fun onNewToken(token: String) = DevReply.registerPush(this, token)
+     *     override fun onMessageReceived(message: RemoteMessage) {
+     *         if (DevReply.handlePush(this, message.data)) return
+     *         // your app's own pushes
+     *     }
+     * }
+     * // and once at launch, after configure:
+     * FirebaseMessaging.getInstance().token.addOnSuccessListener { DevReply.registerPush(context, it) }
+     * ```
+     * DevReply never asks for the notification permission on its own before the user writes: the chat
+     * offers it after their first message (Android 13+).
+     */
+    @JvmStatic
+    public fun registerPush(context: Context, token: String) {
+        PushManager.register(context, token)
+    }
+
+    /** Whether this FCM message (`RemoteMessage.data`) is one of DevReply's. */
+    @JvmStatic
+    public fun isDevReplyPush(data: Map<String, String>): Boolean = PushManager.isDevReplyPush(data)
+
+    /**
+     * Shows DevReply's push (a reply from the team) as a notification; a tap opens that conversation.
+     * Returns `false` for any other message: handle those yourself. Works while the app is closed too.
+     */
+    @JvmStatic
+    public fun handlePush(context: Context, data: Map<String, String>): Boolean = PushManager.handle(context, data)
+
     /** Fetches unread replies, e.g. when the app returns to the foreground. */
     public suspend fun refresh() {
         Messenger.refresh()

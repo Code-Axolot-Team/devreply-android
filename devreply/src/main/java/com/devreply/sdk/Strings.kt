@@ -113,6 +113,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Notifications are off",
         "push.off_text" to "Turn them on in Settings so you see when {team} answers.",
         "push.open_settings" to "Open Settings",
+        "push.channel" to "Replies",
         "a11y.unread" to "{count} unread",
     )
 
@@ -204,6 +205,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Mitteilungen sind aus",
         "push.off_text" to "Schalte sie in den Einstellungen ein, damit du siehst, wenn {team} antwortet.",
         "push.open_settings" to "Einstellungen öffnen",
+        "push.channel" to "Antworten",
         "a11y.unread" to "{count} ungelesen",
     )
 
@@ -295,6 +297,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Οι ειδοποιήσεις είναι απενεργοποιημένες",
         "push.off_text" to "Ενεργοποίησέ τες στις Ρυθμίσεις για να βλέπεις πότε απαντά {team}.",
         "push.open_settings" to "Άνοιγμα Ρυθμίσεων",
+        "push.channel" to "Απαντήσεις",
         "a11y.unread" to "Μη αναγνωσμένα: {count}",
     )
 
@@ -386,6 +389,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Las notificaciones están desactivadas",
         "push.off_text" to "Actívalas en Ajustes para saber cuándo responde {team}.",
         "push.open_settings" to "Abrir Ajustes",
+        "push.channel" to "Respuestas",
         "a11y.unread" to "{count} sin leer",
     )
 
@@ -477,6 +481,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Les notifications sont désactivées",
         "push.off_text" to "Activez-les dans Réglages pour voir quand {team} répond.",
         "push.open_settings" to "Ouvrir Réglages",
+        "push.channel" to "Réponses",
         "a11y.unread" to "{count} non lus",
     )
 
@@ -568,6 +573,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Le notifiche sono disattivate",
         "push.off_text" to "Attivale nelle Impostazioni per sapere quando {team} risponde.",
         "push.open_settings" to "Apri Impostazioni",
+        "push.channel" to "Risposte",
         "a11y.unread" to "{count} da leggere",
     )
 
@@ -659,6 +665,7 @@ internal object DevReplyStrings {
         "push.off_title" to "通知がオフになっています",
         "push.off_text" to "{team} の返信が分かるよう、設定で通知をオンにしてください。",
         "push.open_settings" to "設定を開く",
+        "push.channel" to "返信",
         "a11y.unread" to "未読 {count} 件",
     )
 
@@ -750,6 +757,7 @@ internal object DevReplyStrings {
         "push.off_title" to "알림이 꺼져 있어요",
         "push.off_text" to "{team}의 답장을 확인하려면 설정에서 알림을 켜세요.",
         "push.open_settings" to "설정 열기",
+        "push.channel" to "답장",
         "a11y.unread" to "읽지 않음 {count}개",
     )
 
@@ -841,6 +849,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Meldingen staan uit",
         "push.off_text" to "Zet ze aan in Instellingen, zodat je ziet wanneer {team} antwoordt.",
         "push.open_settings" to "Instellingen openen",
+        "push.channel" to "Antwoorden",
         "a11y.unread" to "{count} ongelezen",
     )
 
@@ -932,6 +941,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Powiadomienia są wyłączone",
         "push.off_text" to "Włącz je w Ustawieniach, aby wiedzieć, kiedy odpowie {team}.",
         "push.open_settings" to "Otwórz Ustawienia",
+        "push.channel" to "Odpowiedzi",
         "a11y.unread" to "Nieprzeczytane: {count}",
     )
 
@@ -1023,6 +1033,7 @@ internal object DevReplyStrings {
         "push.off_title" to "As notificações estão desativadas",
         "push.off_text" to "Ative-as nos Ajustes para saber quando {team} responder.",
         "push.open_settings" to "Abrir Ajustes",
+        "push.channel" to "Respostas",
         "a11y.unread" to "{count} não lidas",
     )
 
@@ -1114,6 +1125,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Уведомления выключены",
         "push.off_text" to "Включите их в Настройках, чтобы видеть, когда отвечает {team}.",
         "push.open_settings" to "Открыть Настройки",
+        "push.channel" to "Ответы",
         "a11y.unread" to "Непрочитанные: {count}",
     )
 
@@ -1205,6 +1217,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Bildirimler kapalı",
         "push.off_text" to "{team} yanıt verdiğinde görmek için Ayarlar'dan aç.",
         "push.open_settings" to "Ayarlar'ı aç",
+        "push.channel" to "Yanıtlar",
         "a11y.unread" to "{count} okunmamış",
     )
 
@@ -1296,6 +1309,7 @@ internal object DevReplyStrings {
         "push.off_title" to "Сповіщення вимкнено",
         "push.off_text" to "Увімкніть їх у Параметрах, щоб бачити, коли відповідає {team}.",
         "push.open_settings" to "Відкрити Параметри",
+        "push.channel" to "Відповіді",
         "a11y.unread" to "Непрочитані: {count}",
     )
 
@@ -1387,6 +1401,7 @@ internal object DevReplyStrings {
         "push.off_title" to "通知已关闭",
         "push.off_text" to "在设置中打开通知，就能在 {team} 回复时看到。",
         "push.open_settings" to "打开设置",
+        "push.channel" to "回复",
         "a11y.unread" to "{count} 条未读",
     )
 }

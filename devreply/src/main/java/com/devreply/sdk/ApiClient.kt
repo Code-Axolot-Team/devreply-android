@@ -64,6 +64,11 @@ internal class ApiClient(val baseUrl: String) {
         send("PATCH", "v1/install", token, JSONObject().put("locale", locale))
     }
 
+    /** The device's FCM token, so replies reach it as pushes (the app forwards it: DevReply.registerPush). */
+    suspend fun updatePushToken(token: String, pushToken: String) {
+        send("PATCH", "v1/install", token, JSONObject().put("push_token", pushToken))
+    }
+
     /** The app opened a DevReply link: the dashboard shows the deep link works. */
     suspend fun deepLinkOpened(token: String) {
         send("POST", "v1/deep_link_opened", token)

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: replies as notifications. Asked only in the chat, after the user's first message,
+         and only when the app forwards its FCM token (DevReply.registerPush). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application>
         <!-- The messenger. Opened with DevReply.present(context). Own theme, never the host's. -->

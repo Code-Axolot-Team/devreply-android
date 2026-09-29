@@ -109,7 +109,7 @@ class ChatFlowsTest {
         val again = device.wait(Until.findObject(By.res("devreply.bubble")), 90_000)
         assertNotNull("a new reply brings it back", again)
         Thread.sleep(800)
-        assertEquals("2 new replies from Knee Coach", again.contentDescription)
+        assertEquals("New replies from Knee Coach: 2", again.contentDescription)
         snapshot("b2b-back-with-two")
         again.click()
         assertNotNull("opens the reply", device.wait(Until.findObject(By.text("Founder reply $nonce again")), 15_000))

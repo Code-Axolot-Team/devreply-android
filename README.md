@@ -90,6 +90,31 @@ override fun onNewIntent(intent: Intent) {
 Who replied (the teammate's name, title and photo), your app icon and your team's faces come from the
 dashboard; nothing to set up in the app.
 
+### Push notifications
+
+Like Intercom: your app keeps its own Firebase Cloud Messaging setup and passes DevReply the token and
+DevReply's messages. DevReply shows its own notification (who replied and the reply, on a "Replies" channel);
+a tap opens the conversation. The chat asks for the notification permission (Android 13+) only after the
+user's first message, and "Not now" hides the ask for 3 days. The SDK itself doesn't depend on Firebase.
+
+```kotlin
+class MessagingService : FirebaseMessagingService() {
+    override fun onNewToken(token: String) = DevReply.registerPush(this, token)
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        if (DevReply.handlePush(this, message.data)) return
+        // your app's own pushes
+    }
+}
+
+// Once at launch, after DevReply.configure:
+FirebaseMessaging.getInstance().token.addOnSuccessListener { DevReply.registerPush(context, it) }
+```
+
+Then upload the Firebase service account in the dashboard (app → Settings → Push notifications (Android)):
+Firebase console → Project settings → Service accounts → Generate new private key. To use your own
+notification icon, add a white-on-transparent drawable named `devreply_push_icon`.
+
 ## Build, example app and tests
 
 ```sh

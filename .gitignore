@@ -5,3 +5,5 @@ local.properties
 *.iml
 .kotlin/
 captures/
+# Firebase config for the demo's pushes: each developer's own, never committed.
+example/google-services.json

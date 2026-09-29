@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Pushes, like a real app: with your Firebase app's google-services.json in example/ (not committed),
+// the demo forwards its FCM token and DevReply's messages to the SDK. Without it, no pushes.
+if (file("google-services.json").exists()) apply(plugin = libs.plugins.google.services.get().pluginId)
+
 android {
     namespace = "com.codeaxolot.devreply.example"
     compileSdk = 36
@@ -50,6 +54,8 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.activity.compose)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.core)
