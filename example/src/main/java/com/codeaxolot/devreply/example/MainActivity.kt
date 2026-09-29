@@ -41,7 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.text.style.TextDecoration
 import com.devreply.sdk.DevReply
+import com.devreply.sdk.DevReplyCategory
 import kotlinx.coroutines.launch
 
 private val ink = Color(0xFF111111)
@@ -59,7 +61,19 @@ class MainActivity : ComponentActivity() {
         // The chat's language: the device's by default. Apps with their own language setting pass it on
         // (`adb shell am start … --es devreply.locale es` shows it here).
         intent?.getStringExtra("devreply.locale")?.let { DevReply.setLocale(it.ifBlank { null }) }
-        setContent { Home(open = { DevReply.present(this) }) }
+        setContent {
+            Home(
+                open = { DevReply.present(this) },
+                // Straight to a new bug report, with a start for the message and where the user was.
+                report = {
+                    DevReply.present(
+                        this, DevReplyCategory.Bug,
+                        message = "On the demo screen, ",
+                        attributes = mapOf("screen" to "demo_home", "build" to BuildConfig.VERSION_CODE),
+                    )
+                },
+            )
+        }
         // Opened from a DevReply email's button: go to that conversation.
         DevReply.handle(this, intent?.data)
     }
@@ -78,7 +92,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun Home(open: () -> Unit) {
+private fun Home(open: () -> Unit, report: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -103,6 +117,17 @@ private fun Home(open: () -> Unit) {
             style = TextStyle(color = ink, fontSize = 18.sp, fontWeight = FontWeight.Medium, lineHeight = 24.sp),
         )
         Spacer(Modifier.weight(1f))
+        // Hidden while the team has the chat switched off in the dashboard.
+        if (!DevReply.isAvailable) return@Column
+        BasicText(
+            "Report a bug",
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = report)
+                .testTag("reportBug")
+                .padding(vertical = 8.dp),
+            style = TextStyle(color = ink, fontSize = 17.sp, fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline),
+        )
         Box(Modifier.padding(bottom = 24.dp)) {
             Row(
                 Modifier

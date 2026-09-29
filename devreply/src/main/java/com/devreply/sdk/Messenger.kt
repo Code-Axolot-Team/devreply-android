@@ -45,6 +45,41 @@ internal object Messenger {
 
     val unreadCount by derivedStateOf { conversations.sumOf { it.unread } }
 
+    /** Configured, and the team hasn't switched the chat off (the cached or fetched config; on until one says off). */
+    val isAvailable: Boolean get() = client != null && config.enabled
+
+    /**
+     * The chat is switched off, as far as this device knows. Works before configure too (a push that
+     * starts the app): then the config cached for the key the app configured last.
+     */
+    fun switchedOff(context: Context): Boolean {
+        if (client != null) return !config.enabled
+        val prefs = context.applicationContext.getSharedPreferences("devreply", Context.MODE_PRIVATE)
+        val key = prefs.getString("last_key", null) ?: return false
+        return cachedConfig(context.applicationContext, key, "")?.enabled == false
+    }
+
+    // ---- one presentation (DevReply.present): a prefilled message and context for its new conversation ----
+
+    /** Prefills the composer of the new conversation this presentation starts. Never sent by itself. */
+    var presentMessage: String? = null
+        private set
+
+    /** Sent as `context` with the first conversation this presentation starts. */
+    var presentContext: Map<String, Any?> = emptyMap()
+        private set
+
+    fun startPresentation(message: String?, context: Map<String, Any?>) {
+        presentMessage = message?.takeIf { it.isNotBlank() }
+        presentContext = context.toMap()
+    }
+
+    /** A conversation started, or the messenger closed: neither applies again. */
+    fun endPresentation() {
+        presentMessage = null
+        presentContext = emptyMap()
+    }
+
     /** A name is required before the first message (spec 05), unless the app supplied one. */
     val needsName: Boolean get() = profile?.name.isNullOrBlank()
 
@@ -58,6 +93,7 @@ internal object Messenger {
         // the app's own code ran): keep the state, only follow the app's screens.
         if (client != null && publicKey == this.publicKey && apiUrl == client?.baseUrl) {
             (app as? android.app.Application)?.let { AppWatcher.start(it, context as? android.app.Activity) }
+            scope.launch { retryPendingDeletions() }
             return
         }
         appContext = app
@@ -80,6 +116,7 @@ internal object Messenger {
             sendUserId()
             hostUser?.let { (name, email) -> runCatching { saveProfile(name, email) } }
             flushAttributes()
+            retryPendingDeletions()
             refresh()
             syncLocale()
             PushManager.sendTokenIfNeeded()
@@ -259,17 +296,81 @@ internal object Messenger {
         }
     }
 
-    /** `DevReply.deleteUser()`: deletes the user's data on the server, then forgets the install. */
+    /**
+     * `DevReply.deleteUser()`: deletes the user's data on the server with this install's token, then
+     * forgets the install. If the server can't be reached (or answers 5xx/429), the device forgets the
+     * user anyway and the deletion waits in [pendingDeletions] with the old token (returns false).
+     */
     suspend fun deleteUser(): Boolean {
-        if (client == null) return false
-        val ok = runCatching { authorized { api, t -> api.deleteUser(t) } }.isSuccess
-        if (!ok) return false
+        val api = client ?: return false
+        val account = account ?: return false
+        val token = cachedToken ?: withContext(Dispatchers.IO) { tokens?.token(account) }
+        if (token == null) {
+            // This device never registered: there's nothing of this user on the server.
+            forgetInstallAndStartOver()
+            return true
+        }
+        return when (PendingDeletions.outcome(attempt { api.deleteUser(token) })) {
+            PendingDeletions.Outcome.Done -> {
+                forgetInstallAndStartOver()
+                true
+            }
+            PendingDeletions.Outcome.Retry -> {
+                withContext(Dispatchers.IO) { pendingDeletions(account)?.add(token) }
+                forgetInstallAndStartOver()
+                false
+            }
+            PendingDeletions.Outcome.Failed -> false
+        }
+    }
+
+    private val retryingDeletions = Mutex()
+
+    /**
+     * Deletions that couldn't reach the server: tried again with their own saved tokens (never this
+     * install's) at configure and when the app comes back. Stops at the first one the server can't take yet.
+     */
+    suspend fun retryPendingDeletions() {
+        val api = client ?: return
+        val account = account ?: return
+        if (retryingDeletions.isLocked) return
+        retryingDeletions.withLock {
+            val pending = pendingDeletions(account) ?: return
+            for (token in withContext(Dispatchers.IO) { pending.all() }) {
+                if (PendingDeletions.outcome(attempt { api.deleteUser(token) }) == PendingDeletions.Outcome.Retry) break
+                // Done (or refused for good, which retrying can't change): no longer pending.
+                withContext(Dispatchers.IO) { pending.remove(token) }
+            }
+        }
+    }
+
+    /** Runs a request; returns what it threw, or null when it succeeded. Cancellation still cancels. */
+    private suspend fun attempt(request: suspend () -> Unit): Throwable? = try {
+        request()
+        null
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        e
+    }
+
+    /** Pending deletions for this API host + key, in the encrypted token store. */
+    private fun pendingDeletions(account: String): PendingDeletions? {
+        val store = tokens ?: return null
+        val key = "pending_delete|$account"
+        return PendingDeletions(
+            read = { store.token(key) },
+            write = { value -> if (value == null) store.deleteToken(key) else store.setToken(value, key) },
+        )
+    }
+
+    /** After the user is deleted: a new, empty install from here on. */
+    private fun forgetInstallAndStartOver() {
         forgetInstall()
         scope.launch {
             refresh()
             PushManager.sendTokenIfNeeded()
         }
-        return true
     }
 
     /** Everything this device knew about the user: the token, who they were, their chats on screen. */
@@ -314,6 +415,8 @@ internal object Messenger {
      * install's, the messenger home otherwise, and tells the server once that the deep link works.
      */
     fun openFromLink(context: Context, conversationId: UUID) {
+        if (!config.enabled) return
+        endPresentation()
         val start = java.lang.ref.WeakReference(context)
         val app = context.applicationContext
         scope.launch {

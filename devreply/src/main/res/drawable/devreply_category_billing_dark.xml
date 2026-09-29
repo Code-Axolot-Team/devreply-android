@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from sdk/conformance/icons/billing-dark.svg (the dark artwork; selected by the chat's mode, see themedArt). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp" android:height="64dp" android:viewportWidth="64" android:viewportHeight="64">
+    <path android:pathData="M13,17 h42 a4,4 0 0,1 4,4 v26 a4,4 0 0,1 -4,4 h-42 a4,4 0 0,1 -4,-4 v-26 a4,4 0 0,1 4,-4 z"
+        android:fillColor="#FF070A12" />
+    <path android:pathData="M10,14 h42 a4,4 0 0,1 4,4 v26 a4,4 0 0,1 -4,4 h-42 a4,4 0 0,1 -4,-4 v-26 a4,4 0 0,1 4,-4 z"
+        android:fillColor="#FF3F6BFF"
+        android:strokeColor="#FFEEF1F8"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+    <path android:pathData="M7.5 24h47"
+        android:strokeColor="#FF0E1320"
+        android:strokeWidth="7"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="butt" />
+    <path android:pathData="M13.5,32 h8 a1.5,1.5 0 0,1 1.5,1.5 v5 a1.5,1.5 0 0,1 -1.5,1.5 h-8 a1.5,1.5 0 0,1 -1.5,-1.5 v-5 a1.5,1.5 0 0,1 1.5,-1.5 z"
+        android:fillColor="#FFF6EB37"
+        android:strokeColor="#FF0E1320"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+    <path android:pathData="M31 40h8M43 40h6"
+        android:strokeColor="#FFEEF1F8"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+</vector>

@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Version of this SDK. Sent on install registration and compared with each block's `min_sdk`. */
-public const val DEVREPLY_SDK_VERSION: String = "0.4.3"
+public const val DEVREPLY_SDK_VERSION: String = "0.4.4"
 
 /** What a conversation is about. Set by the start button the user picked (spec 05). */
 public enum class DevReplyCategory(internal val wire: String) {
@@ -68,6 +68,8 @@ internal data class MessengerConfig(
     val localize: Set<String> = emptySet(),
     /** The reply-time preset, e.g. `3_working_days`: translated (0.4). */
     val replyWithinKey: String? = null,
+    /** False: the team switched the chat off in the dashboard (0.4.4). Missing counts as on. */
+    val enabled: Boolean = true,
 ) {
     data class StartButton(val category: DevReplyCategory, val emoji: String, val title: String)
 
@@ -111,6 +113,7 @@ internal data class MessengerConfig(
                 localize = json.optJSONArray("localize")?.let { a -> (0 until a.length()).mapNotNull { a.opt(it) as? String }.toSet() }
                     ?: emptySet(),
                 replyWithinKey = json.str("reply_within_key"),
+                enabled = json.opt("enabled") != false,
             )
         }
     }
@@ -268,4 +271,35 @@ internal fun attributesJson(attributes: Map<String, Any?>): JSONObject {
         }
     }
     return out
+}
+
+/** What `POST /v1/conversations` accepts as `context` (the same rules as attributes on the server). */
+internal const val MAX_CONTEXT_VALUES = 20
+internal const val MAX_ATTRIBUTE_TEXT = 500
+
+/** 1–40 characters: ASCII letters, digits, `_ - .` or space (the server refuses anything else). */
+internal fun isAttributeKey(key: String): Boolean =
+    key.length in 1..40 && key.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it in "_-. " }
+
+/**
+ * The context `DevReply.present(…, attributes)` sends with a new conversation, or null when nothing is
+ * left. The server refuses the whole request for one bad value, so the SDK drops what it would refuse:
+ * bad keys, nulls, other types, NaN; text is cut at 500 characters; at most 20 values (in the map's order).
+ */
+internal fun contextJson(context: Map<String, Any?>): JSONObject? {
+    val clean = LinkedHashMap<String, Any>()
+    for ((key, value) in context) {
+        if (clean.size == MAX_CONTEXT_VALUES) break
+        if (!isAttributeKey(key)) continue
+        clean[key] = when (value) {
+            is String -> if (value.length <= MAX_ATTRIBUTE_TEXT) value else {
+                val cut = value.take(MAX_ATTRIBUTE_TEXT)
+                if (cut.last().isHighSurrogate()) cut.dropLast(1) else cut
+            }
+            is Boolean -> value
+            is Number -> value.toDouble().takeIf { !it.isNaN() && !it.isInfinite() }?.let { value } ?: continue
+            else -> continue
+        }
+    }
+    return if (clean.isEmpty()) null else attributesJson(clean)
 }

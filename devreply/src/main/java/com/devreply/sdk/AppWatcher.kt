@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Follows the host app's activities (spec 05):
- * - back in the app: fetch unread replies; while it's open and the messenger closed, check every 30 s;
+ * - back in the app: fetch unread replies (and retry a pending user deletion); while it's open and the messenger closed, check every 30 s;
  * - on each of the app's own screens: the unread bubble.
  */
 internal object AppWatcher : Application.ActivityLifecycleCallbacks {
@@ -57,7 +57,11 @@ internal object AppWatcher : Application.ActivityLifecycleCallbacks {
 
     private fun refresh() {
         lastRefresh = SystemClock.elapsedRealtime()
-        Messenger.scope.launch { Messenger.refresh() }
+        Messenger.scope.launch {
+            // A user deletion that couldn't reach the server before: try again now the app is back.
+            Messenger.retryPendingDeletions()
+            Messenger.refresh()
+        }
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit

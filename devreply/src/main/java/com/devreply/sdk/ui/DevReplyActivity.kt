@@ -1,6 +1,8 @@
 package com.devreply.sdk.ui
 
 import android.graphics.Color as AndroidColor
+import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -14,7 +16,11 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +32,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import com.devreply.sdk.DevReply
 import com.devreply.sdk.DevReplyCategory
+import com.devreply.sdk.DevReplyEvent
+import com.devreply.sdk.Events
+import androidx.compose.ui.graphics.toArgb
 import com.devreply.sdk.Messenger
 import java.util.UUID
 
@@ -42,18 +51,57 @@ internal sealed interface Route {
 internal class DevReplyActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // The brand is a light look: dark status and navigation bar icons in dark mode too.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
-        )
+        applyTheme()
         super.onCreate(savedInstanceState)
         Messenger.restore(this)
+        if (savedInstanceState == null) Events.emit(DevReplyEvent.MessengerOpened)
         if (intent.getBooleanExtra(EXTRA_FROM_PUSH, false)) com.devreply.sdk.PushManager.reportOpened()
         val category = intent.getStringExtra(EXTRA_CATEGORY)?.let { raw -> DevReplyCategory.entries.firstOrNull { it.wire == raw } }
         val conversation = intent.getStringExtra(EXTRA_CONVERSATION)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         current = java.lang.ref.WeakReference(this)
-        setContent { MessengerScreen(start = category, conversation = conversation, close = ::finish) }
+        setContent {
+            val theme = activeTheme()
+            CompositionLocalProvider(
+                LocalTheme provides theme,
+                // Selecting text in a bubble or the composer: handles and highlight in the theme's accent.
+                LocalTextSelectionColors provides TextSelectionColors(theme.accent, theme.accent.copy(alpha = 0.4f)),
+            ) {
+                MessengerScreen(start = category, conversation = conversation, close = ::finish)
+            }
+        }
+    }
+
+    /** Night mode changed while open (the activity handles uiMode itself): the bars follow the theme. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyTheme()
+    }
+
+    /**
+     * Status and navigation bar icons follow the active theme: the status bar's match the header's text
+     * (the header text; dark in DevReply's light look, as before), the navigation bar's suit the
+     * page. The window's background too, so nothing flashes light before the first frame.
+     */
+    private fun applyTheme() {
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val theme = DevReply.paletteFor(night)
+        fun style(light: Boolean) = if (light) {
+            SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+        } else {
+            SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+        }
+        enableEdgeToEdge(statusBarStyle = style(!theme.onHeaderColor.isLight), navigationBarStyle = style(theme.background.isLight))
+        window.setBackgroundDrawable(ColorDrawable(theme.background.toArgb()))
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) {
+            Events.emit(DevReplyEvent.MessengerClosed)
+            // What DevReply.present passed applies to this presentation only. (A newer messenger already
+            // on top keeps its own.)
+            if (current?.get().let { it == null || it === this }) Messenger.endPresentation()
+        }
     }
 
     override fun onResume() {
@@ -92,12 +140,15 @@ private fun MessengerScreen(start: DevReplyCategory?, conversation: UUID?, close
         Messenger.isPresented = true
         onDispose { Messenger.isPresented = false }
     }
+    // The team switched the chat off in the dashboard while it was open.
+    val enabled = Messenger.config.enabled
+    LaunchedEffect(enabled) { if (!enabled) close() }
 
     AnimatedContent(
         targetState = route,
         modifier = Modifier
             .fillMaxSize()
-            .background(DevReply.theme.background)
+            .background(LocalTheme.current.background)
             // UI tests (UiAutomator) find views by these tags.
             .semantics { testTagsAsResourceId = true },
         transitionSpec = {

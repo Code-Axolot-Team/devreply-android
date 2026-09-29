@@ -49,7 +49,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -88,7 +96,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -137,7 +148,7 @@ private sealed interface ChatItem {
 @Composable
 internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategory?, back: () -> Unit) {
     val model = remember { ConversationModel(conversationId, category) }
-    val theme = DevReply.theme
+    val theme = LocalTheme.current
     val config = Messenger.config
     val haptics = LocalHapticFeedback.current
     var viewing by remember { mutableStateOf<String?>(null) }
@@ -266,7 +277,11 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
                 } else if (model.messages.any { it.isFromUser }) {
                     PushManager.askState(LocalContext.current)?.let { PushAskCard(it, config.teamName) }
                 }
-                Composer(autoFocus = model.conversationId == null) { text, staged -> model.send(text, staged) }
+                // A new conversation starts with what DevReply.present passed (not sent until the user sends it).
+                Composer(
+                    autoFocus = model.conversationId == null,
+                    prefill = if (model.conversationId == null) Messenger.presentMessage.orEmpty() else "",
+                ) { text, staged -> model.send(text, staged) }
             }
         }
     }
@@ -276,15 +291,15 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
 
 @Composable
 private fun TopBar(back: () -> Unit) {
-    val theme = DevReply.theme
+    val theme = LocalTheme.current
     val config = Messenger.config
     Row(
         Modifier
             .fillMaxWidth()
-            .background(theme.primary)
+            .background(theme.headerFill)
             .drawBehind {
-                val h = 3.dp.toPx()
-                drawRect(theme.ink, topLeft = Offset(0f, size.height - h), size = size.copy(height = h))
+                val h = theme.stroke(3.dp).toPx()
+                drawRect(theme.line, topLeft = Offset(0f, size.height - h), size = size.copy(height = h))
             }
             .statusBarsPadding()
             .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 13.dp),
@@ -294,9 +309,9 @@ private fun TopBar(back: () -> Unit) {
         IconSquareButton(R.drawable.devreply_ic_back, com.devreply.sdk.t("back"), back, Modifier.testTag("devreply.back"))
         TeamAvatar(config.teamName, 32.dp, imageUrl = config.appIconUrl, modifier = Modifier.testTag("devreply.appicon"))
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            BasicText(config.teamName.ifEmpty { com.devreply.sdk.t("chat") }, style = display(16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            BasicText(config.teamName.ifEmpty { com.devreply.sdk.t("chat") }, style = display(16.sp, theme.onHeaderColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (config.replyTimeText.isNotEmpty()) {
-                BasicText(config.replyTimeText, style = text(11.sp, FontWeight.Medium, theme.ink.copy(alpha = 0.75f)), maxLines = 1)
+                BasicText(config.replyTimeText, style = text(11.sp, FontWeight.Medium, theme.onHeaderColor.copy(alpha = 0.75f)), maxLines = 1)
             }
         }
     }
@@ -305,28 +320,30 @@ private fun TopBar(back: () -> Unit) {
 /** Shown while the conversation is empty, at the top of the screen. */
 @Composable
 private fun Intro(category: DevReplyCategory) {
+    val theme = LocalTheme.current
     val title = Messenger.config.startButtons.firstOrNull { it.category == category }?.let { Messenger.config.title(it) } ?: category.defaultTitle
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 36.dp, start = 20.dp, end = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Box(Modifier.brutal(shadow = 6.dp).padding(18.dp)) {
-            Image(painterResource(category.icon), null, Modifier.size(64.dp))
+        Box(Modifier.brutal(theme, shadow = 6.dp).padding(18.dp)) {
+            Image(categoryArt(category), null, Modifier.size(64.dp))
         }
         BasicText(title, style = display(26.sp).copy(textAlign = TextAlign.Center))
-        BasicText(category.prompt, style = text(16.sp, FontWeight.Medium, Brand.muted).copy(textAlign = TextAlign.Center))
+        BasicText(category.prompt, style = text(16.sp, FontWeight.Medium, theme.muted).copy(textAlign = TextAlign.Center))
     }
 }
 
 // MARK: Composer
 
 @Composable
-private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
-    val theme = DevReply.theme
+private fun Composer(autoFocus: Boolean, prefill: String = "", send: (String, List<Staged>) -> Unit) {
+    val theme = LocalTheme.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var draft by remember { mutableStateOf("") }
+    // The cursor after a prefilled message, ready to add to it.
+    var draft by remember { mutableStateOf(TextFieldValue(prefill, TextRange(prefill.length))) }
     var staged by remember { mutableStateOf(emptyList<Staged>()) }
     var pickError by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
@@ -364,12 +381,12 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
         }
     }
 
-    val canSend = draft.isNotBlank() || staged.isNotEmpty()
+    val canSend = draft.text.isNotBlank() || staged.isNotEmpty()
     Column(
         Modifier
             .fillMaxWidth()
-            .background(Color.White)
-            .drawBehind { drawRect(theme.ink, size = size.copy(height = 3.dp.toPx())) }
+            .background(theme.surface)
+            .drawBehind { drawRect(theme.line, size = size.copy(height = theme.stroke(3.dp).toPx())) }
             .padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -381,17 +398,26 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 staged.forEach { item -> StagedThumb(item) { staged = staged.filter { it.id != item.id } } }
             }
         }
-        pickError?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, Brand.error)) }
+        pickError?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, theme.error)) }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box {
                 IconSquareButton(
                     R.drawable.devreply_ic_attach, com.devreply.sdk.t("attach"), { menu = true },
                     Modifier.testTag("devreply.attach"), size = 46.dp,
                 )
-                DropdownMenu(menu, { menu = false }, Modifier.background(Color.White)) {
+                // The Loud look, not Material's: a square surface card with the outline, in the theme's colours.
+                CompositionLocalProvider(LocalContentColor provides theme.ink) {
+                DropdownMenu(
+                    menu, { menu = false },
+                    shape = RectangleShape,
+                    containerColor = theme.surface,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                    border = BorderStroke(theme.stroke(2.5.dp), theme.line),
+                ) {
                     DropdownMenuItem(
                         text = { BasicText(com.devreply.sdk.t("photo"), style = text(16.sp, FontWeight.Medium)) },
-                        leadingIcon = { Image(painterResource(R.drawable.devreply_ic_photo), null, Modifier.size(22.dp)) },
+                        leadingIcon = { Image(painterResource(R.drawable.devreply_ic_photo), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(theme.ink)) },
                         onClick = {
                             menu = false
                             photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -399,12 +425,13 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                     )
                     DropdownMenuItem(
                         text = { BasicText(com.devreply.sdk.t("file"), style = text(16.sp, FontWeight.Medium)) },
-                        leadingIcon = { Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(22.dp)) },
+                        leadingIcon = { Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(theme.ink)) },
                         onClick = {
                             menu = false
                             files.launch(arrayOf("*/*"))
                         },
                     )
+                }
                 }
             }
             BasicTextField(
@@ -413,8 +440,8 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 46.dp)
-                    .background(Color.White)
-                    .border(3.dp, theme.ink)
+                    .background(theme.surface)
+                    .border(theme.stroke(3.dp), theme.line)
                     .focusRequester(focus)
                     .testTag("devreply.composer"),
                 textStyle = text(17.sp),
@@ -423,15 +450,15 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 decorationBox = { inner ->
                     Box(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), contentAlignment = Alignment.CenterStart) {
-                        if (draft.isEmpty()) BasicText(com.devreply.sdk.t("composer.placeholder"), style = text(17.sp, color = Brand.muted.copy(alpha = 0.7f)))
+                        if (draft.text.isEmpty()) BasicText(com.devreply.sdk.t("composer.placeholder"), style = text(17.sp, color = theme.muted.copy(alpha = 0.7f)))
                         inner()
                     }
                 },
             )
             BrutalButton(
                 onClick = {
-                    send(draft, staged)
-                    draft = ""
+                    send(draft.text, staged)
+                    draft = TextFieldValue("")
                     staged = emptyList()
                     pickError = null
                 },
@@ -442,7 +469,7 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
                 label = com.devreply.sdk.t("send"),
             ) {
                 Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-                    Image(painterResource(R.drawable.devreply_ic_send), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(theme.ink))
+                    Image(painterResource(R.drawable.devreply_ic_send), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(theme.onAccentColor))
                 }
             }
         }
@@ -451,34 +478,35 @@ private fun Composer(autoFocus: Boolean, send: (String, List<Staged>) -> Unit) {
 
 @Composable
 private fun StagedThumb(item: Staged, remove: () -> Unit) {
+    val theme = LocalTheme.current
     Box {
-        Box(Modifier.size(64.dp).border(2.5.dp, Brand.ink).clipToBounds()) {
+        Box(Modifier.size(64.dp).border(theme.stroke(2.5.dp), theme.line).clipToBounds()) {
             if (item.preview != null) {
                 Image(item.preview, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Column(
-                    Modifier.fillMaxSize().background(Brand.lemon).padding(4.dp),
+                    Modifier.fillMaxSize().background(theme.brand).padding(4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(18.dp))
-                    BasicText(item.name, style = text(10.sp, FontWeight.Bold).copy(textAlign = TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(18.dp), colorFilter = ColorFilter.tint(theme.onBrand))
+                    BasicText(item.name, style = text(10.sp, FontWeight.Bold, theme.onBrand).copy(textAlign = TextAlign.Center), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
-            Box(Modifier.matchParentSize().border(2.5.dp, Brand.ink))
+            Box(Modifier.matchParentSize().border(theme.stroke(2.5.dp), theme.line))
         }
         Box(
             Modifier
                 .align(Alignment.TopEnd)
                 .offset(7.dp, (-7).dp)
                 .size(22.dp)
-                .background(Brand.pink)
-                .border(2.dp, Brand.ink)
+                .background(theme.accent)
+                .border(theme.stroke(2.dp), theme.line)
                 .clickable(onClick = remove)
                 .semantics { contentDescription = com.devreply.sdk.t("remove_attachment", "name" to item.name) },
             contentAlignment = Alignment.Center,
         ) {
-            Image(painterResource(R.drawable.devreply_ic_close), null, Modifier.size(12.dp))
+            Image(painterResource(R.drawable.devreply_ic_close), null, Modifier.size(12.dp), colorFilter = ColorFilter.tint(theme.onAccentColor))
         }
     }
 }
@@ -488,6 +516,7 @@ private fun StagedThumb(item: Staged, remove: () -> Unit) {
 /** Asked once, before the first message, unless the host app passed a name with `DevReply.setUser`. */
 @Composable
 private fun NameForm() {
+    val theme = LocalTheme.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -521,15 +550,15 @@ private fun NameForm() {
     Column(
         Modifier
             .fillMaxWidth()
-            .background(Brand.lemon)
-            .drawBehind { drawRect(Brand.ink, size = size.copy(height = 3.dp.toPx())) }
+            .background(theme.cardFill)
+            .drawBehind { drawRect(theme.line, size = size.copy(height = theme.stroke(3.dp).toPx())) }
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Kicker(com.devreply.sdk.t("name.kicker"), inverted = true)
         BasicText(
             com.devreply.sdk.t("name.text"),
-            style = text(15.sp, FontWeight.Medium, Brand.ink),
+            style = text(15.sp, FontWeight.Medium, theme.onCardColor),
         )
         FormField(
             name, { name = it }, com.devreply.sdk.t("name.placeholder"),
@@ -543,16 +572,16 @@ private fun NameForm() {
             KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false, imeAction = ImeAction.Done),
             KeyboardActions(onDone = { save() }),
         )
-        error?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, Brand.error)) }
+        error?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, theme.errorOnCard)) }
         BrutalButton(
             ::save,
             Modifier.fillMaxWidth().alpha(if (name.isBlank()) 0.5f else 1f).testTag("devreply.profile.save"),
-            fill = Brand.pink,
+            fill = theme.accent,
             shadow = 4.dp,
             enabled = !saving && name.isNotBlank(),
         ) {
             Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                BasicText(if (saving) com.devreply.sdk.t("saving") else com.devreply.sdk.t("name.start"), style = text(16.sp, FontWeight.Bold, Brand.ink))
+                BasicText(if (saving) com.devreply.sdk.t("saving") else com.devreply.sdk.t("name.start"), style = text(16.sp, FontWeight.Bold, theme.onAccentColor))
             }
         }
     }
@@ -567,18 +596,20 @@ private fun FormField(
     keyboard: KeyboardOptions,
     actions: KeyboardActions,
 ) {
+    // Used on the prompt cards: a surface field with the outline colour.
+    val theme = LocalTheme.current
     BasicTextField(
         value = value,
         onValueChange = onChange,
-        modifier = modifier.fillMaxWidth().height(46.dp).background(Color.White).border(2.5.dp, Brand.ink),
-        textStyle = text(17.sp, color = Brand.ink),
-        cursorBrush = SolidColor(Brand.ink),
+        modifier = modifier.fillMaxWidth().height(46.dp).background(theme.surface).border(theme.stroke(2.5.dp), theme.line),
+        textStyle = text(17.sp, color = theme.ink),
+        cursorBrush = SolidColor(theme.ink),
         singleLine = true,
         keyboardOptions = keyboard,
         keyboardActions = actions,
         decorationBox = { inner ->
             Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) BasicText(placeholder, style = text(17.sp, color = Brand.muted.copy(alpha = 0.7f)))
+                if (value.isEmpty()) BasicText(placeholder, style = text(17.sp, color = theme.muted.copy(alpha = 0.7f)))
                 inner()
             }
         },
@@ -593,12 +624,13 @@ private fun FormField(
  */
 @Composable
 private fun ReceivedNotice(teamName: String, allow: String, email: String?) {
+    val theme = LocalTheme.current
     val body = "$allow " + (email?.let { com.devreply.sdk.t("notice.email", "email" to it) } ?: com.devreply.sdk.t("notice.here"))
     Row(
         Modifier
             .fillMaxWidth()
             .padding(top = 4.dp, end = 4.dp)
-            .brutal(shadow = 3.dp)
+            .brutal(theme, fill = theme.noticeFill, shadow = 3.dp)
             .padding(12.dp)
             .semantics(mergeDescendants = true) {}
             .testTag("devreply.notice"),
@@ -606,8 +638,8 @@ private fun ReceivedNotice(teamName: String, allow: String, email: String?) {
     ) {
         TeamAvatar(teamName, 36.dp, imageUrl = Messenger.config.appIconUrl)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            BasicText(com.devreply.sdk.t("notice.title"), style = text(15.sp, FontWeight.Bold, Brand.ink))
-            BasicText(body, style = text(14.sp, FontWeight.Medium, Brand.ink))
+            BasicText(com.devreply.sdk.t("notice.title"), style = text(15.sp, FontWeight.Bold))
+            BasicText(body, style = text(14.sp, FontWeight.Medium))
         }
     }
 }
@@ -615,6 +647,7 @@ private fun ReceivedNotice(teamName: String, allow: String, email: String?) {
 /** Right after the first message of a request, if we don't have their email: optional, one tap to skip. */
 @Composable
 private fun EmailAskCard(done: () -> Unit) {
+    val theme = LocalTheme.current
     val scope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
@@ -640,22 +673,22 @@ private fun EmailAskCard(done: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .background(Brand.lemon)
-            .drawBehind { drawRect(Brand.ink, size = size.copy(height = 3.dp.toPx())) }
+            .background(theme.cardFill)
+            .drawBehind { drawRect(theme.line, size = size.copy(height = theme.stroke(3.dp).toPx())) }
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicText(com.devreply.sdk.t("email_ask.title"), Modifier.weight(1f), style = text(15.sp, FontWeight.Bold, Brand.ink))
+            BasicText(com.devreply.sdk.t("email_ask.title"), Modifier.weight(1f), style = text(15.sp, FontWeight.Bold, theme.onCardColor))
             BasicText(
                 com.devreply.sdk.t("no_thanks"),
                 Modifier.clickable(onClick = done).padding(4.dp).testTag("devreply.emailask.skip"),
-                style = text(14.sp, FontWeight.Bold, Brand.muted),
+                style = text(14.sp, FontWeight.Bold, theme.mutedOnCard),
             )
         }
         BasicText(
             com.devreply.sdk.t("email_ask.text"),
-            style = text(13.sp, FontWeight.Medium, Brand.ink),
+            style = text(13.sp, FontWeight.Medium, theme.onCardColor),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
@@ -669,17 +702,17 @@ private fun EmailAskCard(done: () -> Unit) {
             BrutalButton(
                 ::save,
                 Modifier.alpha(if (email.isBlank()) 0.5f else 1f).testTag("devreply.emailask.save"),
-                fill = Brand.pink,
+                fill = theme.accent,
                 shadow = 3.dp,
                 enabled = !saving && email.isNotBlank(),
                 label = com.devreply.sdk.t("save"),
             ) {
                 Box(Modifier.height(46.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                    BasicText(if (saving) "…" else com.devreply.sdk.t("save"), style = text(15.sp, FontWeight.Bold, Brand.ink))
+                    BasicText(if (saving) "…" else com.devreply.sdk.t("save"), style = text(15.sp, FontWeight.Bold, theme.onAccentColor))
                 }
             }
         }
-        error?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, Brand.error)) }
+        error?.let { BasicText(it, style = text(13.sp, FontWeight.Bold, theme.errorOnCard)) }
     }
 }
 
@@ -695,28 +728,29 @@ private fun PushAskCard(state: PushManager.AskState, teamName: String) {
         PushManager.asked(context)
     }
     val first = state == PushManager.AskState.FirstAsk
+    val theme = LocalTheme.current
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Brand.lemon)
-            .drawBehind { drawRect(Brand.ink, size = size.copy(height = 3.dp.toPx())) }
+            .background(theme.cardFill)
+            .drawBehind { drawRect(theme.line, size = size.copy(height = theme.stroke(3.dp).toPx())) }
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            Modifier.size(40.dp).background(androidx.compose.ui.graphics.Color.White).border(2.dp, Brand.ink),
+            Modifier.size(40.dp).background(theme.surface).border(theme.stroke(2.dp), theme.line),
             contentAlignment = Alignment.Center,
         ) {
-            Image(painterResource(R.drawable.devreply_ic_bell), null, Modifier.size(20.dp))
+            Image(painterResource(R.drawable.devreply_ic_bell), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(theme.ink))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             BasicText(
                 com.devreply.sdk.t(if (first) "push.title" else "push.off_title"),
-                style = text(15.sp, FontWeight.Bold, Brand.ink),
+                style = text(15.sp, FontWeight.Bold, theme.onCardColor),
             )
             BasicText(
                 com.devreply.sdk.t(if (first) "push.text" else "push.off_text", "team" to who),
-                style = text(14.sp, FontWeight.Medium, Brand.ink),
+                style = text(14.sp, FontWeight.Medium, theme.onCardColor),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 val label = com.devreply.sdk.t(if (first) "push.turn_on" else "push.open_settings")
@@ -729,18 +763,18 @@ private fun PushAskCard(state: PushManager.AskState, teamName: String) {
                         }
                     },
                     Modifier.testTag("devreply.push.enable"),
-                    fill = Brand.pink,
+                    fill = theme.accent,
                     shadow = 3.dp,
                     label = label,
                 ) {
                     Box(Modifier.height(40.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                        BasicText(label, style = text(15.sp, FontWeight.Bold, Brand.ink))
+                        BasicText(label, style = text(15.sp, FontWeight.Bold, theme.onAccentColor))
                     }
                 }
                 BasicText(
                     com.devreply.sdk.t("push.not_now"),
                     Modifier.clickable { PushManager.notNow(context) }.padding(4.dp).testTag("devreply.push.notnow"),
-                    style = text(14.sp, FontWeight.Bold, Brand.muted),
+                    style = text(14.sp, FontWeight.Bold, theme.mutedOnCard),
                 )
             }
         }
@@ -776,9 +810,9 @@ private fun PersonaLabel(persona: com.devreply.sdk.Persona) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         TeamAvatar(persona.name, 22.dp, imageUrl = persona.avatarUrl, lineWidth = 2.dp)
-        BasicText(persona.name, style = text(13.sp, FontWeight.Bold, Brand.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        BasicText(persona.name, style = text(13.sp, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (persona.title.isNotEmpty()) {
-            BasicText(persona.title, style = text(13.sp, FontWeight.Medium, Brand.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            BasicText(persona.title, style = text(13.sp, FontWeight.Medium, LocalTheme.current.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -792,7 +826,10 @@ private fun ChatRow(fromUser: Boolean, teamName: String, showAvatar: Boolean = t
         verticalAlignment = Alignment.Bottom,
     ) {
         if (!fromUser && showAvatar) {
-            TeamAvatar(teamName, 30.dp, fill = Brand.lemon, imageUrl = Messenger.config.appIconUrl)
+            TeamAvatar(
+                teamName, 30.dp, fill = LocalTheme.current.brand, imageUrl = Messenger.config.appIconUrl,
+                initialsColor = LocalTheme.current.onBrand,
+            )
             Spacer(Modifier.size(10.dp))
         }
         Column(
@@ -813,7 +850,7 @@ private fun MessageRow(message: Message, teamName: String, onOpenImage: (String)
         BasicText(
             if (resolved) com.devreply.sdk.t("system.resolved") else message.plainText,
             Modifier.fillMaxWidth().padding(vertical = 6.dp),
-            style = text(13.sp, FontWeight.Bold, Brand.muted).copy(textAlign = TextAlign.Center),
+            style = text(13.sp, FontWeight.Bold, LocalTheme.current.muted).copy(textAlign = TextAlign.Center),
         )
         return
     }
@@ -835,6 +872,7 @@ private fun MessageRow(message: Message, teamName: String, onOpenImage: (String)
 
 @Composable
 private fun PendingRow(item: ConversationModel.Pending, teamName: String, retry: () -> Unit) {
+    val theme = LocalTheme.current
     Box(Modifier.then(if (item.failure != null) Modifier.clickable(onClick = retry) else Modifier)) {
         ChatRow(fromUser = true, teamName = teamName) {
             item.attachments.forEach { staged ->
@@ -845,12 +883,12 @@ private fun PendingRow(item: ConversationModel.Pending, teamName: String, retry:
                         Modifier
                             .sizeIn(maxWidth = 220.dp, maxHeight = 260.dp)
                             .aspectRatio(preview.width.toFloat() / maxOf(preview.height, 1))
-                            .border(3.dp, Brand.ink)
+                            .border(theme.stroke(3.dp), theme.line)
                             .alpha(0.7f),
                         contentScale = ContentScale.Crop,
                     )
                 } else {
-                    Box(Modifier.brutal(shadow = 3.dp).alpha(0.7f)) { FileChip(staged.name, staged.attachment.data.size) }
+                    Box(Modifier.brutal(theme, shadow = 3.dp).alpha(0.7f)) { FileChip(staged.name, staged.attachment.data.size) }
                 }
             }
             if (item.text.isNotEmpty()) {
@@ -858,8 +896,8 @@ private fun PendingRow(item: ConversationModel.Pending, teamName: String, retry:
             }
             if (item.failure != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Image(painterResource(R.drawable.devreply_ic_warning), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Brand.error))
-                    BasicText(item.failure, style = text(12.sp, FontWeight.Bold, Brand.error).copy(textAlign = TextAlign.End))
+                    Image(painterResource(R.drawable.devreply_ic_warning), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(theme.error))
+                    BasicText(item.failure, style = text(12.sp, FontWeight.Bold, theme.error).copy(textAlign = TextAlign.End))
                 }
             } else {
                 Kicker(if (item.attachments.isEmpty()) com.devreply.sdk.t("sending") else com.devreply.sdk.t("uploading"))
@@ -870,19 +908,19 @@ private fun PendingRow(item: ConversationModel.Pending, teamName: String, retry:
 
 @Composable
 private fun TextBubble(text: String, fromUser: Boolean, muted: Boolean = false) {
-    val theme = DevReply.theme
+    val theme = LocalTheme.current
     val shape = RoundedCornerShape(14.dp)
     val bubble = if (fromUser) {
         // Like the blue bubble on devreply.com: flat colour, rounded.
         Modifier.background(theme.userBubble, shape)
     } else {
-        Modifier.brutal(shadow = 3.dp, lineWidth = 2.5.dp, cornerRadius = 14.dp)
+        Modifier.brutal(theme, fill = theme.teamBubbleFill, shadow = 3.dp, lineWidth = 2.5.dp, cornerRadius = 14.dp)
     }
     SelectionContainer {
         BasicText(
             text,
             bubble.padding(horizontal = 14.dp, vertical = 11.dp),
-            style = text(17.sp, FontWeight.Medium, if (fromUser) theme.userBubbleText else if (muted) Brand.muted else theme.ink),
+            style = text(17.sp, FontWeight.Medium, if (fromUser) theme.userBubbleText else if (muted) theme.muted else theme.teamBubbleTextColor),
         )
     }
 }
@@ -891,18 +929,19 @@ private fun TextBubble(text: String, fromUser: Boolean, muted: Boolean = false) 
 @Composable
 private fun FileChip(name: String, size: Int?) {
     val context = LocalContext.current
+    val theme = LocalTheme.current
     Row(
         Modifier.widthIn(max = 240.dp).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(40.dp, 44.dp).background(Brand.lemon).border(2.dp, Brand.ink), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(20.dp))
+        Box(Modifier.size(40.dp, 44.dp).background(theme.brand).border(theme.stroke(2.dp), theme.line), contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.devreply_ic_file), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(theme.onBrand))
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            BasicText(name, style = text(15.sp, FontWeight.Bold, Brand.ink), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            BasicText(name, style = text(15.sp, FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (size != null) {
-                BasicText(Formatter.formatShortFileSize(context, size.toLong()), style = text(12.sp, FontWeight.Medium, Brand.muted))
+                BasicText(Formatter.formatShortFileSize(context, size.toLong()), style = text(12.sp, FontWeight.Medium, theme.muted))
             }
         }
     }
@@ -910,14 +949,15 @@ private fun FileChip(name: String, size: Int?) {
 
 @Composable
 private fun RemoteImage(url: String, width: Int?, height: Int?, onClick: () -> Unit) {
+    val theme = LocalTheme.current
     val ratio = (width ?: 4).toFloat() / maxOf(height ?: 3, 1)
     val image by produceState(ImageCache.cached(url), url) { value = ImageCache.image(url) }
     Box(
         Modifier
             .sizeIn(maxWidth = 220.dp, maxHeight = 260.dp)
             .aspectRatio(ratio)
-            .drawBehind { drawRect(Brand.ink, topLeft = Offset(4.dp.toPx(), 4.dp.toPx()), size = size) }
-            .background(Brand.grey)
+            .drawBehind { drawRect(theme.shadowColor, topLeft = Offset(4.dp.toPx(), 4.dp.toPx()), size = size) }
+            .background(theme.subtle)
             .clickable(onClick = onClick)
             .semantics { contentDescription = com.devreply.sdk.t("open_photo") },
         contentAlignment = Alignment.Center,
@@ -926,9 +966,9 @@ private fun RemoteImage(url: String, width: Int?, height: Int?, onClick: () -> U
         if (loaded != null) {
             Image(loaded, null, Modifier.fillMaxSize().clipToBounds(), contentScale = ContentScale.Crop)
         } else {
-            CircularProgressIndicator(Modifier.size(24.dp), color = Brand.ink, strokeWidth = 3.dp)
+            CircularProgressIndicator(Modifier.size(24.dp), color = theme.ink, strokeWidth = 3.dp)
         }
-        Box(Modifier.matchParentSize().border(3.dp, Brand.ink))
+        Box(Modifier.matchParentSize().border(theme.stroke(3.dp), theme.line))
     }
 }
 
@@ -936,8 +976,32 @@ private fun RemoteImage(url: String, width: Int?, height: Int?, onClick: () -> U
 private fun ImageViewer(url: String, close: () -> Unit) {
     val image by produceState<ImageBitmap?>(ImageCache.cached(url), url) { value = ImageCache.image(url) }
     var zoom by remember { mutableFloatStateOf(1f) }
+    // Photos on the theme's darkest colour (the outline in both presets: near-black), the spinner in its lightest.
+    val theme = LocalTheme.current
+    val colours = listOf(theme.line, theme.ink, theme.background, theme.headerFill).sortedBy { it.luminance() }
+    val backdrop = colours.first()
+    val onBackdrop = colours.last()
     Dialog(close, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Box(Modifier.fillMaxSize().background(Brand.ink)) {
+        // The dialog is its own window: its status bar icons follow the backdrop, not the app's theme.
+        val view = LocalView.current
+        SideEffect {
+            (view.parent as? DialogWindowProvider)?.window?.let { window ->
+                // Edge to edge: the backdrop under the status bar too, not the dimmed app.
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    window.attributes = window.attributes.apply {
+                        fitInsetsTypes = 0
+                        // Into the camera cutout's band as well (the status bar).
+                        layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    }
+                }
+                window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = backdrop.isLight
+                    isAppearanceLightNavigationBars = backdrop.isLight
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize().background(backdrop)) {
             val loaded = image
             if (loaded != null) {
                 Image(
@@ -949,11 +1013,11 @@ private fun ImageViewer(url: String, close: () -> Unit) {
                     contentScale = ContentScale.Fit,
                 )
             } else {
-                CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
+                CircularProgressIndicator(Modifier.align(Alignment.Center), color = onBackdrop)
             }
             IconSquareButton(
                 R.drawable.devreply_ic_close, com.devreply.sdk.t("close_photo"), close,
-                Modifier.align(Alignment.TopEnd).systemBarsPadding().padding(20.dp), fill = Brand.lemon,
+                Modifier.align(Alignment.TopEnd).systemBarsPadding().padding(20.dp), fill = theme.brand, tint = theme.onBrand,
             )
         }
     }

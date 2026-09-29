@@ -26,6 +26,10 @@ android {
         // Only for testing against a local server: -Pdevreply.api=http://localhost:8081 (with `adb reverse`).
         val api = (project.findProperty("devreply.api") as String?) ?: "https://api.devreply.com"
         buildConfigField("String", "DEVREPLY_API", "\"$api\"")
+        // Show only this demo in dark mode (Android 12+), whatever the phone's setting: -Pdevreply.night=yes.
+        buildConfigField("boolean", "DEVREPLY_NIGHT", ((project.findProperty("devreply.night") as String?) == "yes").toString())
+        // The chat in your own colours (a blue header, orange buttons): -Pdevreply.theme=custom.
+        buildConfigField("boolean", "DEVREPLY_CUSTOM_THEME", ((project.findProperty("devreply.theme") as String?) == "custom").toString())
     }
     buildTypes {
         release {

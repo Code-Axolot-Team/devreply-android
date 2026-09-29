@@ -52,7 +52,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun HomeScreen(open: (Route) -> Unit, close: () -> Unit) {
-    val theme = DevReply.theme
+    val theme = LocalTheme.current
     val config = Messenger.config
     val conversations = Messenger.conversations
     val error = Messenger.lastError
@@ -97,7 +97,7 @@ internal fun HomeScreen(open: (Route) -> Unit, close: () -> Unit) {
             BasicText(
                 t("powered"),
                 Modifier.fillMaxWidth(),
-                style = text(12.sp, FontWeight.Medium, Brand.muted).copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+                style = text(12.sp, FontWeight.Medium, theme.muted).copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
             )
         }
     }
@@ -105,14 +105,15 @@ internal fun HomeScreen(open: (Route) -> Unit, close: () -> Unit) {
 
 @Composable
 private fun Header(config: MessengerConfig, close: () -> Unit) {
-    val theme = DevReply.theme
+    // On the header colour: onHeader text; the cards on it keep their surface, ink and outlines.
+    val theme = LocalTheme.current
     Column(
         Modifier
             .fillMaxWidth()
-            .background(theme.primary)
+            .background(theme.headerFill)
             .drawBehind {
-                val h = 3.dp.toPx()
-                drawRect(theme.ink, topLeft = Offset(0f, size.height - h), size = size.copy(height = h))
+                val h = theme.stroke(3.dp).toPx()
+                drawRect(theme.line, topLeft = Offset(0f, size.height - h), size = size.copy(height = h))
             }
             .statusBarsPadding()
             .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 29.dp),
@@ -123,18 +124,21 @@ private fun Header(config: MessengerConfig, close: () -> Unit) {
             Box(Modifier.weight(1f)) {
                 Kicker(config.teamName.ifEmpty { t("team") }, inverted = true)
             }
-            IconSquareButton(com.devreply.sdk.R.drawable.devreply_ic_close, t("close"), close, Modifier.testTag("devreply.close"))
+            IconSquareButton(
+                com.devreply.sdk.R.drawable.devreply_ic_close, t("close"), close, Modifier.testTag("devreply.close"),
+            )
         }
-        BasicText(config.greetingText, style = display(38.sp))
-        BasicText(config.introText, style = text(17.sp, FontWeight.Medium))
+        BasicText(config.greetingText, style = display(38.sp, theme.onHeaderColor))
+        BasicText(config.introText, style = text(17.sp, FontWeight.Medium, theme.onHeaderColor))
         if (config.replyTimeText.isNotEmpty()) {
             Row(
-                Modifier.brutal(shadow = 3.dp, lineWidth = 2.5.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+                Modifier.brutal(theme, shadow = 3.dp, lineWidth = 2.5.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (config.team.isEmpty()) {
-                    Box(Modifier.size(10.dp).background(Brand.online).border(1.5.dp, theme.ink))
+                    // Status green reads on light and dark alike.
+                    Box(Modifier.size(10.dp).background(theme.success).border(theme.stroke(1.5.dp), theme.line))
                 } else {
                     TeamFaces(config.team)
                 }
@@ -156,7 +160,9 @@ private fun TeamFaces(team: List<com.devreply.sdk.Persona>) {
             .semantics { contentDescription = team.joinToString(", ") { it.name } },
     ) {
         team.forEachIndexed { i, p ->
-            TeamAvatar(p.name, face, imageUrl = p.avatarUrl, lineWidth = 2.dp, modifier = Modifier.offset(x = step * i))
+            TeamAvatar(
+                p.name, face, imageUrl = p.avatarUrl, lineWidth = 2.dp, modifier = Modifier.offset(x = step * i),
+            )
         }
     }
 }
@@ -185,39 +191,41 @@ private fun StartTile(button: MessengerConfig.StartButton, title: String) {
         Modifier.fillMaxWidth().heightIn(min = 144.dp).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Image(painterResource(button.category.icon), null, Modifier.size(46.dp))
-        BasicText(title, style = text(16.sp, FontWeight.Bold, Brand.ink))
+        Image(categoryArt(button.category), null, Modifier.size(46.dp))
+        BasicText(title, style = text(16.sp, FontWeight.Bold))
     }
 }
 
 @Composable
 private fun ConversationRow(c: Conversation) {
+    val theme = LocalTheme.current
     val category = c.category ?: DevReplyCategory.Other
     Row(
         Modifier.fillMaxWidth().padding(14.dp).alpha(if (c.isClosed) 0.7f else 1f),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Image(painterResource(category.icon), null, Modifier.size(34.dp))
+        Image(categoryArt(category), null, Modifier.size(34.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Kicker(if (c.lastAuthor == "user") t("you") else t("team"))
                 if (c.isClosed) {
                     BasicText(
                         t("resolved"),
-                        Modifier.background(Brand.resolved).border(1.5.dp, Brand.ink).padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = text(11.sp, FontWeight.Bold, Brand.ink),
+                        // Mint is light in both looks: dark text on it.
+                        Modifier.background(theme.resolved).border(theme.stroke(1.5.dp), theme.line).padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = text(11.sp, FontWeight.Bold, theme.onBrand),
                     )
                 }
                 Spacer(Modifier.weight(1f))
                 BasicText(
                     L10n.relative(c.lastMessageAt),
-                    style = text(12.sp, FontWeight.Medium, Brand.muted),
+                    style = text(12.sp, FontWeight.Medium, theme.muted),
                     maxLines = 1,
                 )
             }
             BasicText(
                 c.lastText?.let { if (it == L10n.LEGACY_RESOLVED) t("system.resolved") else it } ?: t("photo"),
-                style = text(15.sp, if (c.unread > 0) FontWeight.Bold else FontWeight.Normal, Brand.ink),
+                style = text(15.sp, if (c.unread > 0) FontWeight.Bold else FontWeight.Normal),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -226,14 +234,14 @@ private fun ConversationRow(c: Conversation) {
             Box(
                 Modifier
                     .sizeIn(minWidth = 24.dp, minHeight = 24.dp)
-                    .background(Brand.pink)
-                    .border(2.dp, Brand.ink)
+                    .background(theme.accent)
+                    .border(theme.stroke(2.dp), theme.line)
                     .semantics {
                         contentDescription = t("a11y.unread", "count" to c.unread)
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                BasicText("${c.unread}", Modifier.padding(horizontal = 4.dp), style = text(13.sp, FontWeight.Bold, Brand.ink))
+                BasicText("${c.unread}", Modifier.padding(horizontal = 4.dp), style = text(13.sp, FontWeight.Bold, theme.onAccentColor))
             }
         }
     }

@@ -45,8 +45,12 @@ internal class ApiClient(val baseUrl: String) {
 
     suspend fun startConversation(
         token: String, category: DevReplyCategory?, text: String, attachments: List<String>,
+        context: Map<String, Any?> = emptyMap(),
     ): StartedConversation {
-        val json = send("POST", "v1/conversations", token, messageBody(text, category, attachments)) as JSONObject
+        val body = messageBody(text, category, attachments)
+        // The app's context for this conversation (DevReply.present(…, attributes)), only when there is some.
+        contextJson(context)?.let { body.put("context", it) }
+        val json = send("POST", "v1/conversations", token, body) as JSONObject
         return StartedConversation(
             Conversation.parse(json.getJSONObject("conversation")),
             Message.parse(json.getJSONObject("message")),

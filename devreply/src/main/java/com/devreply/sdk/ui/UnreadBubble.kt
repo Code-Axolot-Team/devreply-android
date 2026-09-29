@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -46,7 +47,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -109,7 +109,10 @@ internal object UnreadBubble {
                 setViewTreeLifecycleOwner(owner)
                 setViewTreeSavedStateRegistryOwner(owner)
             }
-            setContent { Overlay(keyboardUp) { open(activity) } }
+            // The app's screen decides light or dark (its configuration's night mode), like the messenger.
+            setContent {
+                CompositionLocalProvider(LocalTheme provides activeTheme()) { Overlay(keyboardUp) { open(activity) } }
+            }
         }
         // The keyboard, read from the window (works whether or not the app draws edge to edge).
         val listener = ViewTreeObserver.OnGlobalLayoutListener {
@@ -120,6 +123,7 @@ internal object UnreadBubble {
     }
 
     private fun open(activity: Activity) {
+        Messenger.endPresentation()
         val id = Messenger.conversations.firstOrNull { it.unread > 0 }?.id
         val intent = Intent(activity, DevReplyActivity::class.java)
         if (id != null) intent.putExtra(DevReplyActivity.EXTRA_CONVERSATION, id.toString())
@@ -162,7 +166,8 @@ private fun Overlay(keyboardUp: MutableState<Boolean>, open: () -> Unit) {
         val dismissed = UnreadBubble.dismissedAt
         if (unread == 0 || (dismissed != null && unread > dismissed)) UnreadBubble.dismissedAt = null
     }
-    val shows = UnreadBubble.enabled && unread > 0 && !Messenger.isPresented && !keyboardUp.value &&
+    // Hidden while the team has the chat switched off.
+    val shows = UnreadBubble.enabled && Messenger.config.enabled && unread > 0 && !Messenger.isPresented && !keyboardUp.value &&
         UnreadBubble.dismissedAt == null
     // Fills the screen but handles no touches itself: taps outside the button go to the app.
     Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
@@ -189,6 +194,7 @@ private fun Bubble(count: Int, teamName: String, open: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val shift = if (pressed) 3.dp else 0.dp
+    val theme = LocalTheme.current
     val who = teamName.ifEmpty { com.devreply.sdk.t("team") }
     val label = if (count == 1) {
         com.devreply.sdk.t("launcher.one", "team" to who)
@@ -235,14 +241,15 @@ private fun Bubble(count: Int, teamName: String, open: () -> Unit) {
                 .offset(shift, shift)
                 .drawBehind {
                     val o = (4.dp - shift).toPx()
-                    drawCircle(Brand.ink, radius = size.minDimension / 2, center = center + Offset(o, o))
+                    drawCircle(theme.shadowColor, radius = size.minDimension / 2, center = center + Offset(o, o))
                 }
-                .background(Brand.lemon, CircleShape)
-                .border(3.dp, Brand.ink, CircleShape)
+                .background(theme.brand, CircleShape)
+                .border(theme.stroke(3.dp), theme.line, CircleShape)
                 .clickable(interaction, indication = null, onClick = open),
             contentAlignment = Alignment.Center,
         ) {
-            Image(painterResource(R.drawable.devreply_mark), null, Modifier.size(32.dp).offset(y = 2.dp))
+            // The mark's lines take the outline colour, its paper the surface (as it is in the light look).
+            Image(themedArt(R.drawable.devreply_mark), null, Modifier.size(32.dp).offset(y = 2.dp))
         }
         BasicText(
             if (count > 9) "9+" else "$count",
@@ -250,10 +257,10 @@ private fun Bubble(count: Int, teamName: String, open: () -> Unit) {
                 .align(Alignment.TopEnd)
                 .offset(8.dp, (-8).dp)
                 .sizeIn(minWidth = 24.dp, minHeight = 24.dp)
-                .background(Brand.pink, CircleShape)
-                .border(2.5.dp, Brand.ink, CircleShape)
+                .background(theme.accent, CircleShape)
+                .border(theme.stroke(2.5.dp), theme.line, CircleShape)
                 .padding(horizontal = 6.dp, vertical = 2.dp),
-            style = text(13.sp, FontWeight.Bold, Brand.ink).copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+            style = text(13.sp, FontWeight.Bold, theme.onAccentColor).copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
         )
     }
 }

@@ -4,6 +4,29 @@ Released versions stay supported: the API only grows, and every released version
 against the server on every change. Features added later may be missing in an older version; nothing it
 uses breaks.
 
+## 0.4.4
+
+* `DevReply.present(context, category, message, attributes)`: `message` prefills the composer of the new
+  conversation (the user sees it and can edit it; never sent by itself); `attributes` go with that conversation
+  as its context, shown to your team (text, number or true/false, up to 20). Returns `false` and shows nothing
+  when DevReply isn't configured or the chat is switched off; existing calls keep compiling.
+* The chat's on/off switch in the dashboard: `DevReply.isAvailable` (Compose state). While it's off, `present`
+  returns `false`, the unread bubble hides, `handlePush` still takes DevReply's messages but shows nothing, and
+  an open messenger closes. Login, logout, attributes and pushes keep working.
+* `DevReply.deleteUser()` never gives up: offline or on a server error, the device forgets the user at once
+  and DevReply retries the deletion (with the old install's token, stored encrypted) at every `configure` and
+  whenever the app comes back, until the server confirms. Returns `true` when deleted now, `false` when queued.
+* Events for analytics: `DevReply.addEventListener { event -> }` with `MessengerOpened`, `MessengerClosed`,
+  `ConversationStarted(conversationId, category)` and `MessageSent(conversationId)`, on the main thread;
+  `cancel()` the returned subscription.
+* Dark mode, opt-in: `DevReply.darkTheme = DevReplyTheme.Dark` (or your own colours) is used when the
+  configuration is in night mode (the system's or your app's). Without it the chat stays light, exactly as
+  before. `DevReplyTheme.Dark` is "Deep blue" (navy page, cobalt header, pink buttons). A dark theme takes the
+  same six colours as the light one; DevReply derives everything else (cards a step above the page, thin light
+  outlines, dark shadows, black or white text on buttons, lemon for the small brand touches) and draws its own
+  dark category icons. Every colour in the chat now follows the theme, including the attach menu, the photo
+  viewer, the unread bubble, text selection, DevReply's notification colour and the status bar icons.
+
 ## 0.4.3
 
 * Signed-in users: `DevReply.login(userId)` after sign-in (your own id for the user; the team sees it, your

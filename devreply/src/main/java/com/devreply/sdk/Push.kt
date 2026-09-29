@@ -14,6 +14,7 @@ import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
 import com.devreply.sdk.ui.DevReplyActivity
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -72,6 +73,8 @@ internal object PushManager {
         val app = context.applicationContext
         // Unread counts and the bubble catch up (when the app is running and configured).
         if (Messenger.client != null) Messenger.scope.launch { Messenger.refresh() }
+        // The team switched the chat off: still DevReply's message, but nothing to show.
+        if (Messenger.switchedOff(app)) return true
         // The user is reading that conversation right now: it's on screen already.
         if (Messenger.isPresented && Messenger.visibleConversation == id) return true
         if (!notificationsAllowed(app)) return true
@@ -84,6 +87,8 @@ internal object PushManager {
         val body = data["devreply_body"].orEmpty()
         val notification = Notification.Builder(app, CHANNEL)
             .setSmallIcon(R.drawable.devreply_push_icon)
+            // The icon and app name in the theme's accent (the dark theme's when the app is in night mode).
+            .setColor(DevReply.paletteFor(isNight(app)).accent.toArgb())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(Notification.BigTextStyle().bigText(body))
@@ -189,6 +194,10 @@ internal object PushManager {
         val channel = manager.getNotificationChannel(CHANNEL)
         return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
     }
+
+    private fun isNight(context: Context) =
+        (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("devreply-push", Context.MODE_PRIVATE)
 }

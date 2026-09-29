@@ -6,7 +6,7 @@ Jetpack Compose, answered from the [DevReply dashboard](https://app.devreply.com
 
 - Home with start buttons (bug, billing, idea, question), the user's conversations, and the chat.
 - Photos and files, name first, optional email, "we got it" with your reply time, a long drag hides the keyboard.
-- An unread bubble over your app's screens. Your colours, or DevReply's own look.
+- An unread bubble over your app's screens. Your colours, or DevReply's own look, light and (opt-in) dark.
 - Forward compatible: a newer server never breaks an app already shipped.
 
 Requires minSdk 26, Kotlin 2 and Compose.
@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Code-Axolot-Team:devreply-android:0.4.3")
+    implementation("com.github.Code-Axolot-Team:devreply-android:0.4.4")
 }
 ```
 
@@ -42,7 +42,7 @@ import com.devreply.sdk.DevReply
 // Once, in Application.onCreate (your Android public key from the dashboard; it's safe to ship)
 DevReply.configure(this, "pk_…")
 
-// From any button
+// From any button (false when not configured or the chat is switched off in the dashboard)
 DevReply.present(context)             // or present(context, DevReplyCategory.Bug)
 
 // Optional
@@ -57,6 +57,65 @@ speaks the device's language (15 languages: English, Spanish, Portuguese, French
 Russian, Ukrainian, Turkish, Greek, Japanese, Korean, Chinese).
 
 Never put a secret key (`sk_…`) in an app.
+
+### Start a conversation with a message and context
+
+```kotlin
+DevReply.present(
+    context, DevReplyCategory.Bug,
+    message = "Export failed: ",                                      // in the composer, not sent
+    attributes = mapOf("screen" to "export", "order_id" to 1042),    // shown to your team with the conversation
+)
+```
+
+`message` prefills the composer of the new conversation (the user can edit it before sending). `attributes`
+are that conversation's context: text, number or true/false, up to 20, names of 1–40 letters, digits,
+`_ - .` or space. They go with the first conversation started from this `present`, then are dropped.
+
+### Switched off in the dashboard
+
+Your team can switch the chat off in the dashboard. Then `DevReply.isAvailable` is `false` (Compose state):
+`present` returns `false`, the unread bubble hides, DevReply's notifications aren't shown and an open chat
+closes. Hide your own "Message us" button with it:
+
+```kotlin
+if (DevReply.isAvailable) Button(onClick = { DevReply.present(context) }) { Text("Message us") }
+```
+
+### Dark mode
+
+Off by default: the chat stays light. Opt in with DevReply's dark look, or your own colours:
+
+```kotlin
+DevReply.darkTheme = DevReplyTheme.Dark                                     // DevReply's "Deep blue"
+DevReply.theme = DevReplyTheme(primary = Color(0xFF0A84FF), accent = Color(0xFFFF9F0A))
+DevReply.darkTheme = DevReplyTheme.Dark.copy(primary = Color(0xFF6A3FD8))  // tweak the preset
+```
+
+The dark theme is used whenever the configuration is in night mode (the system's dark theme, or your app's
+`AppCompatDelegate.setDefaultNightMode`). Six colours, for light and dark separately: `primary` (header and
+highlights), `accent` (buttons that act, unread badges), `userBubble`, `userBubbleText`, `background` (the page)
+and `ink` (text, icons and outlines). DevReply derives every other colour from them and the mode: in light,
+exactly the look above; in dark, cards a step lighter than the page, thin light outlines over dark shadows, black
+or white text on the header and buttons (whichever reads), DevReply's lemon for the small brand touches and its
+own dark category icons. The attach menu, the photo viewer, the unread bubble, text selection and DevReply's
+notification colour follow the theme too. Line widths, shadows, fonts and square corners are DevReply's look.
+
+### Events for analytics
+
+```kotlin
+val subscription = DevReply.addEventListener { event ->
+    when (event) {
+        DevReplyEvent.MessengerOpened -> analytics.log("support_opened")
+        DevReplyEvent.MessengerClosed -> analytics.log("support_closed")
+        is DevReplyEvent.ConversationStarted -> analytics.log("support_started", event.category?.name)
+        is DevReplyEvent.MessageSent -> analytics.log("support_message")
+    }
+}
+subscription.cancel()   // when you no longer want them
+```
+
+Called on the main thread. The first message of a conversation sends `ConversationStarted`, then `MessageSent`.
 
 ### Open the chat from DevReply's emails (deep link)
 
@@ -111,7 +170,8 @@ class MessagingService : FirebaseMessagingService() {
 FirebaseMessaging.getInstance().token.addOnSuccessListener { DevReply.registerPush(context, it) }
 ```
 
-Then upload the Firebase service account in the dashboard (app → Settings → Push notifications (Android)):
+Then upload the Firebase service account in the dashboard (app → Settings → Push notifications (Android)),
+or let your coding agent do it with DevReply's MCP tool `set_android_push_key`:
 Firebase console → Project settings → Service accounts → Generate new private key. To use your own
 notification icon, add a white-on-transparent drawable named `devreply_push_icon`.
 
@@ -126,7 +186,7 @@ If your app has accounts:
 ```kotlin
 DevReply.login(account.id)             // after sign-in: your own id for the user, never an email or a secret
 DevReply.logout()                      // on every sign-out and account switch
-val ok = DevReply.deleteUser()         // suspend, in your delete-account flow; false if DevReply couldn't be reached
+val ok = DevReply.deleteUser()         // suspend, in your delete-account flow; true = deleted now, false = queued
 DevReply.deleteUser { ok -> }          // the same with a callback (Java)
 ```
 
@@ -135,7 +195,10 @@ DevReply.deleteUser { ok -> }          // the same with a callback (Java)
   another's conversations. If another id was signed in on this device, DevReply logs out first.
 - `logout` revokes this install and its push token; the device forgets the chat and the next person starts empty.
   The conversations stay with your team.
-- `deleteUser` deletes the user's name, email, attributes, conversations, messages and files, then logs out.
+- `deleteUser` deletes the user's name, email, attributes, conversations, messages and files, and the device
+  forgets the user. If DevReply can't be reached (offline, server error), the device forgets the user anyway and
+  DevReply retries the deletion by itself at every `configure` and whenever the app comes back, until the server
+  confirms (`false` means queued, not failed).
 
 Your backend can delete a user too, with a read-and-write secret key (never in an app):
 
@@ -156,6 +219,8 @@ Your team can also delete a user in the dashboard (the inbox's user panel → De
 adb shell am instrument -w -e class com.codeaxolot.devreply.example.MessengerUiTest \
   com.codeaxolot.devreply.example.test/androidx.test.runner.AndroidJUnitRunner
 ```
+
+`PresentTest` checks the demo's "Report a bug" link: `present` with a prefilled message, nothing sent.
 
 `ChatFlowsTest` (notice, email ask, keyboard, unread bubble) runs against a throwaway app: build with its
 `-Pdevreply.pk`, `adb shell pm clear com.codeaxolot.devreply.example`, then instrument with `-e nonce <n>`

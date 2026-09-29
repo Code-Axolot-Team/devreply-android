@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from sdk/conformance/icons/question-dark.svg (the dark artwork; selected by the chat's mode, see themedArt). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp" android:height="64dp" android:viewportWidth="64" android:viewportHeight="64">
+    <path android:pathData="M12 9h45a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H30l-12 11v-11h-6a4 4 0 0 1-4-4V13a4 4 0 0 1 4-4z"
+        android:fillColor="#FFFF5FA2" />
+    <path android:pathData="M8 6h45a4 4 0 0 1 4 4v29a4 4 0 0 1-4 4H26l-12 11V43H8a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4z"
+        android:fillColor="#FF0E1320"
+        android:strokeColor="#FFEEF1F8"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+    <path android:pathData="M24 19.5c0-4.4 3.4-7.5 7.5-7.5s7.5 3 7.5 6.8c0 5.7-7.5 5.4-7.5 11"
+        android:strokeColor="#FFF6EB37"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round" />
+    <path android:pathData="M28.5,36.5 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 z"
+        android:fillColor="#FFF6EB37" />
+</vector>

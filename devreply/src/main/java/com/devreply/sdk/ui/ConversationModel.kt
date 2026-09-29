@@ -16,6 +16,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.devreply.sdk.Conversation
 import com.devreply.sdk.DevReplyCategory
 import com.devreply.sdk.DevReplyError
+import com.devreply.sdk.DevReplyEvent
+import com.devreply.sdk.EventHub
+import com.devreply.sdk.Events
 import com.devreply.sdk.Message
 import com.devreply.sdk.Messenger
 import com.devreply.sdk.OutgoingAttachment
@@ -159,12 +162,18 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
             if (id != null) {
                 val message = Messenger.authorized { api, t -> api.sendMessage(t, id, item.text, ids) }
                 messages = messages + message
+                Events.emit(DevReplyEvent.MessageSent(id.toString()))
             } else {
-                val started = Messenger.authorized { api, t -> api.startConversation(t, category, item.text, ids) }
+                // The app's context (DevReply.present) goes with the first conversation of this presentation only.
+                val context = Messenger.presentContext
+                val started = Messenger.authorized { api, t -> api.startConversation(t, category, item.text, ids, context) }
+                Messenger.endPresentation()
                 conversationId = started.conversation.id
                 conversation = started.conversation
                 messages = messages + started.message
                 Messenger.upsert(started.conversation)
+                EventHub.firstMessage(started.conversation.id.toString(), started.conversation.category ?: category)
+                    .forEach(Events::emit)
             }
             pending = pending.filter { it.id != item.id }
         } catch (e: Exception) {
