@@ -46,6 +46,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -241,15 +243,16 @@ private fun Bubble(count: Int, teamName: String, open: () -> Unit) {
                 .offset(shift, shift)
                 .drawBehind {
                     val o = (4.dp - shift).toPx()
-                    drawCircle(theme.shadowColor, radius = size.minDimension / 2, center = center + Offset(o, o))
+                    // The DevReply star on a black circle with a pink shadow (spec 11: the star always sits on
+                    // black), like devreply.com's launcher. Not themed: a brand touch.
+                    drawCircle(Color(0xFFFF5FA2), radius = size.minDimension / 2, center = center + Offset(o, o))
                 }
-                .background(theme.brand, CircleShape)
-                .border(theme.stroke(3.dp), theme.line, CircleShape)
+                .background(Color(0xFF111111), CircleShape)
+                .border(3.dp, Color(0xFF111111), CircleShape)
                 .clickable(interaction, indication = null, onClick = open),
             contentAlignment = Alignment.Center,
         ) {
-            // The mark's lines take the outline colour, its paper the surface (as it is in the light look).
-            Image(themedArt(R.drawable.devreply_mark), null, Modifier.size(32.dp).offset(y = 2.dp))
+            Image(painterResource(R.drawable.devreply_mark), null, Modifier.size(40.dp))
         }
         BasicText(
             if (count > 9) "9+" else "$count",

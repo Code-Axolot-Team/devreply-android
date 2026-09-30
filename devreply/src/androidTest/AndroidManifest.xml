@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A bare host for the library's device tests: each test sets its own Compose content. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:supportsRtl="true">
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    </application>
+</manifest>

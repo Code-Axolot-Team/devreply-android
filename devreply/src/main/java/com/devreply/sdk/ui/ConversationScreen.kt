@@ -63,6 +63,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -122,6 +123,7 @@ import com.devreply.sdk.replyTimeText
 import com.devreply.sdk.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Duration
@@ -159,12 +161,21 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
     val focusManager = LocalFocusManager.current
     val hideKeyboardAfter = with(LocalDensity.current) { 90.dp.toPx() }
 
-    LaunchedEffect(model.conversationId) {
+    // Restarts (loads at once) when a login gave this device its earlier user's conversations back.
+    LaunchedEffect(model.conversationId, Messenger.reloads) {
         Messenger.loadProfileIfNeeded()
         while (true) {
             model.load()
             delay(3_000)
+            // While the live channel is up, messages come over it: the poll waits until it's down.
+            snapshotFlow { com.devreply.sdk.LiveUpdates.isLive }.first { !it }
         }
+    }
+    // Messages from the live channel, into this conversation.
+    DisposableEffect(model) {
+        val listener: (UUID, com.devreply.sdk.Message) -> Unit = model::receive
+        Messenger.liveListeners += listener
+        onDispose { Messenger.liveListeners -= listener }
     }
     val appContext = LocalContext.current.applicationContext
     DisposableEffect(model.conversationId) {
@@ -255,7 +266,12 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
                                 is ChatItem.Time -> TimeLabel(item.at)
                                 is ChatItem.Msg -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     item.by?.let { PersonaLabel(it) }
-                                    MessageRow(item.message, config.teamName, onOpenImage = { viewing = it })
+                                    MessageRow(
+                                        item.message, config.teamName,
+                                        chosen = if (item.message.blocks.any { it is Block.Buttons }) model.chosenOption(item.message.id) else null,
+                                        onAnswer = { model.answer(item.message, it) },
+                                        onOpenImage = { viewing = it },
+                                    )
                                 }
                                 is ChatItem.Pend -> PendingRow(item.item, config.teamName) { model.retry(item.item) }
                                 ChatItem.Notice -> ReceivedNotice(config.teamName, config.replyAllowText, Messenger.profile?.email?.takeIf { it.isNotBlank() })
@@ -841,7 +857,14 @@ private fun ChatRow(fromUser: Boolean, teamName: String, showAvatar: Boolean = t
 }
 
 @Composable
-private fun MessageRow(message: Message, teamName: String, onOpenImage: (String) -> Unit) {
+internal fun MessageRow(
+    message: Message,
+    teamName: String,
+    /** A buttons question: the option the user picked, null while unanswered. */
+    chosen: String? = null,
+    onAnswer: (Block.Buttons.Option) -> Unit = {},
+    onOpenImage: (String) -> Unit,
+) {
     val context = LocalContext.current
     if (message.author == Message.Author.System) {
         // e.g. "✓ Marked as resolved…": a quiet line, not a bubble.
@@ -865,6 +888,13 @@ private fun MessageRow(message: Message, teamName: String, onOpenImage: (String)
                     label = com.devreply.sdk.t("file_named", "name" to block.name),
                 ) { FileChip(block.name, block.size) }
                 is Block.Unsupported -> TextBubble(block.fallback, message.isFromUser, muted = true)
+                // Formatting is for the team's replies; anything else shows its plain text.
+                is Block.Markdown ->
+                    if (message.isFromUser || block.nodes.isEmpty()) TextBubble(block.fallback, message.isFromUser)
+                    else MarkdownBubble(block.nodes)
+                is Block.Buttons ->
+                    if (message.isFromUser) TextBubble(block.fallback, fromUser = true)
+                    else ButtonsQuestion(block, chosen, onAnswer)
             }
         }
     }
@@ -914,7 +944,7 @@ private fun TextBubble(text: String, fromUser: Boolean, muted: Boolean = false) 
         // Like the blue bubble on devreply.com: flat colour, rounded.
         Modifier.background(theme.userBubble, shape)
     } else {
-        Modifier.brutal(theme, fill = theme.teamBubbleFill, shadow = 3.dp, lineWidth = 2.5.dp, cornerRadius = 14.dp)
+        Modifier.teamBubble(theme)
     }
     SelectionContainer {
         BasicText(

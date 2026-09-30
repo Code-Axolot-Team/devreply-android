@@ -257,3 +257,19 @@ class ThemeTest {
         }
     }
 }
+
+class AskNameTest {
+    @Test fun askNameFalseSkipsTheNameFormUntilTheMessengerCloses() {
+        Messenger.startPresentation(null, emptyMap())
+        assertTrue(Messenger.needsName) // no profile name yet
+
+        Messenger.startPresentation(null, emptyMap(), askName = false)
+        assertFalse(Messenger.needsName)
+        // Still skipped after the first message: the composer stays for the follow-ups.
+        Messenger.presentationConversationStarted()
+        assertFalse(Messenger.needsName)
+
+        Messenger.endPresentation()
+        assertTrue(Messenger.needsName)
+    }
+}

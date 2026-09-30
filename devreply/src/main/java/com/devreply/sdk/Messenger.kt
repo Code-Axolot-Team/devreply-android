@@ -3,6 +3,7 @@ package com.devreply.sdk
 import android.content.Context
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
@@ -21,14 +22,17 @@ import java.util.UUID
 
 /** App-wide messenger state: the install, the config, the user's conversations. Compose reads it directly. */
 internal object Messenger {
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    /** Replaced only by unit tests (the JVM has no main thread). */
+    var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var appContext: Context? = null
     val context: Context? get() = appContext
     private var publicKey: String? = null
     var client: ApiClient? = null
         private set
-    private var tokens: TokenStore? = null
+    private var tokens: SecretStore? = null
+    /** Unit tests: what the install reports, without a Context. */
+    private var testDevice: DeviceInfo? = null
 
     var config by mutableStateOf(MessengerConfig.placeholder(""))
         private set
@@ -37,6 +41,13 @@ internal object Messenger {
     var lastError by mutableStateOf<DevReplyError?>(null)
         private set
     var profile by mutableStateOf<Profile?>(null)
+        private set
+
+    /**
+     * Goes up when the user's conversations changed under the open screens (a login restored this device's
+     * earlier user, spec 03): the open conversation reloads at once.
+     */
+    var reloads by mutableIntStateOf(0)
         private set
 
     /** The messenger is on screen / this conversation is on screen. Compose state: the unread bubble reads it. */
@@ -69,19 +80,30 @@ internal object Messenger {
     var presentContext: Map<String, Any?> = emptyMap()
         private set
 
-    fun startPresentation(message: String?, context: Map<String, Any?>) {
+    /** `present(askName = false)`: no name form while this messenger is open (the email ask still comes). */
+    var skipsName by mutableStateOf(false)
+        private set
+
+    fun startPresentation(message: String?, context: Map<String, Any?>, askName: Boolean = true) {
         presentMessage = message?.takeIf { it.isNotBlank() }
         presentContext = context.toMap()
+        skipsName = !askName
     }
 
-    /** A conversation started, or the messenger closed: neither applies again. */
-    fun endPresentation() {
+    /** A conversation started: the message and context are used up (skipping the name lasts until it closes). */
+    fun presentationConversationStarted() {
         presentMessage = null
         presentContext = emptyMap()
     }
 
-    /** A name is required before the first message (spec 05), unless the app supplied one. */
-    val needsName: Boolean get() = profile?.name.isNullOrBlank()
+    /** The messenger closed, or opened without `present`: nothing of the last presentation applies. */
+    fun endPresentation() {
+        presentationConversationStarted()
+        skipsName = false
+    }
+
+    /** A name is required before the first message (spec 05), unless the app supplied one or passed askName = false. */
+    val needsName: Boolean get() = !skipsName && profile?.name.isNullOrBlank()
 
     private val registering = Mutex()
     private var cachedToken: String? = null
@@ -165,22 +187,24 @@ internal object Messenger {
         val client = client
         val publicKey = publicKey
         val account = account
-        val context = appContext
-        if (client == null || publicKey == null || account == null || context == null) {
+        if (client == null || publicKey == null || account == null) {
             throw DevReplyError.Invalid("Call DevReply.configure first")
         }
         cachedToken?.let { return it }
         return registering.withLock {
             cachedToken ?: (withContext(Dispatchers.IO) { tokens?.token(account) }
-                ?: register(client, publicKey, account, context)).also { cachedToken = it }
+                ?: register(client, publicKey, account)).also { cachedToken = it }
         }
     }
 
     /** Registers this install, unless the key was refused recently (then fails at once, no request). */
-    private suspend fun register(client: ApiClient, publicKey: String, account: String, context: Context): String {
+    private suspend fun register(client: ApiClient, publicKey: String, account: String): String {
+        val device = testDevice ?: appContext?.let { DeviceInfo.current(it) } ?: throw DevReplyError.Invalid("Call DevReply.configure first")
         if (!backoff.allowed()) throw DevReplyError.InvalidPublicKey
+        // This app's key on this device, kept through logout: the same account logging in again gets its chats back.
+        val deviceKey = withContext(Dispatchers.IO) { tokens?.let { DeviceKey.get(it) } }
         val token = try {
-            client.registerInstall(publicKey, DeviceInfo.current(context))
+            client.registerInstall(publicKey, device, deviceKey)
         } catch (e: DevReplyError.InvalidPublicKey) {
             if (backoff.refused()) {
                 android.util.Log.w("DevReply", "DevReply: this public key isn't recognised: ${publicKey.take(9)}… (next try in ${backoff.waitMs() / 1000} s)")
@@ -263,12 +287,15 @@ internal object Messenger {
      * Labels this install's user with the app's id. The server refuses another id for the same user
      * (409): then this install belonged to someone else, so start a new one.
      */
-    private suspend fun sendUserId(retry: Boolean = true) {
+    internal suspend fun sendUserId(retry: Boolean = true) {
         val id = hostUserId ?: return
         val account = account ?: return
         try {
-            profile = authorized { api, t -> api.updateProfile(t, null, null, userId = id) }
+            val updated = authorized { api, t -> api.updateProfile(t, null, null, userId = id) }
+            profile = updated
             withContext(Dispatchers.IO) { tokens?.setToken(id, "user|$account") }
+            // Back on the same device with the same account (spec 03): the install moved to that user again.
+            if (updated.restored) restored()
         } catch (e: DevReplyError.Server) {
             if (e.status == 409 && retry) {
                 logout(keepUserId = true)
@@ -276,6 +303,12 @@ internal object Messenger {
             }
         } catch (e: Exception) {
         }
+    }
+
+    /** A login restored this device's earlier user: their conversations replace the list, open screens reload. */
+    private suspend fun restored() {
+        reloads++
+        refresh()
     }
 
     /**
@@ -373,7 +406,10 @@ internal object Messenger {
         }
     }
 
-    /** Everything this device knew about the user: the token, who they were, their chats on screen. */
+    /**
+     * Everything this device knew about the user: the token, who they were, their chats on screen.
+     * Not the device key ([DeviceKey]): it stays for the next install on this device.
+     */
     private fun forgetInstall() {
         account?.let {
             tokens?.deleteToken(it)
@@ -386,6 +422,7 @@ internal object Messenger {
         conversations = emptyList()
         profile = null
         PushManager.forgetSentToken()
+        LiveUpdates.forget()
         com.devreply.sdk.ui.DevReplyActivity.current?.get()?.finish()
     }
 
@@ -432,6 +469,57 @@ internal object Messenger {
             if (target !is android.app.Activity) intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             runCatching { target.startActivity(intent) }
         }
+    }
+
+    /**
+     * Unit tests: DevReply configured against [client] with [store] as the encrypted store, without a Context
+     * (no config cache, no app watcher). Everything a previous test left is forgotten.
+     */
+    internal fun attachForTests(client: ApiClient, publicKey: String, store: SecretStore, device: DeviceInfo) {
+        this.client = client
+        this.publicKey = publicKey
+        tokens = store
+        testDevice = device
+        appContext = null
+        cachedToken = null
+        hostUserId = null
+        hostUser = null
+        pendingAttributes.clear()
+        backoff = RegistrationBackoff()
+        conversations = emptyList()
+        profile = null
+        lastError = null
+    }
+
+    /** Unit tests: not configured again, as at launch. */
+    internal fun detachForTests() {
+        client = null
+        publicKey = null
+        tokens = null
+        testDevice = null
+        cachedToken = null
+        hostUserId = null
+        conversations = emptyList()
+        profile = null
+    }
+
+    /** Open conversation screens, told about each message the live channel brings. */
+    val liveListeners = mutableListOf<(UUID, Message) -> Unit>()
+
+    /**
+     * A message from the live channel (main thread): into its conversation on screen, and into the list
+     * and unread state as a poll result would put it. A reply on screen is reported read.
+     */
+    fun receiveLive(conversationId: UUID, message: Message) {
+        LiveUpdates.saw(message.id)
+        val onScreen = visibleConversation == conversationId
+        liveListeners.toList().forEach { it(conversationId, message) }
+        val existing = conversation(conversationId)
+        if (existing != null) upsert(existing.applying(message, onScreen))
+        // A conversation this device doesn't list yet (started on another device), or a status change
+        // ("Marked as resolved"): the list comes from the server.
+        if (existing == null || message.author == Message.Author.System) scope.launch { refresh() }
+        if (onScreen && !message.isFromUser) LiveUpdates.sendRead(conversationId)
     }
 
     fun upsert(conversation: Conversation) {

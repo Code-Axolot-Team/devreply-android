@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The DevReply mark (speech bubble with three dots), same artwork as devreply.com and iOS. -->
+<!-- The DevReply mark: the "Tilt" star with its pink shadow (spec 11), drawn on the bubble's black circle.
+     Same artwork as devreply.com, the web SDK and iOS. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="92dp"
-    android:height="88dp"
-    android:viewportWidth="92"
-    android:viewportHeight="88">
-    <group android:translateX="-4" android:translateY="-10">
-        <path
-            android:fillColor="#FFFFFF"
-            android:strokeColor="#111111"
-            android:strokeWidth="6"
-            android:strokeLineJoin="round"
-            android:pathData="M22,16h56a12,12 0,0 1,12 12v36a12,12 0,0 1,-12 12H48L30,92V76h-8a12,12 0,0 1,-12 -12V28a12,12 0,0 1,12 -12z" />
-        <path android:fillColor="#111111" android:pathData="M34,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
-        <path android:fillColor="#111111" android:pathData="M50,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
-        <path android:fillColor="#111111" android:pathData="M66,46m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    android:width="96dp"
+    android:height="94dp"
+    android:viewportWidth="124"
+    android:viewportHeight="122">
+    <group android:translateX="-6">
+        <group android:translateX="6" android:translateY="6">
+            <path android:fillColor="#FF5FA2" android:strokeColor="#FF5FA2" android:strokeWidth="18"
+                android:strokeLineJoin="round" android:pathData="M74.6 10.5 L82.1 37.9 L109.5 45.4 L85.8 61.1 L87.1 89.4 L64.9 71.8 L18.0 102.0 L48.2 55.1 L30.6 32.9 L58.9 34.2 Z" />
+        </group>
+        <path android:fillColor="#111111" android:strokeColor="#111111" android:strokeWidth="18"
+            android:strokeLineJoin="round" android:pathData="M74.6 10.5 L82.1 37.9 L109.5 45.4 L85.8 61.1 L87.1 89.4 L64.9 71.8 L18.0 102.0 L48.2 55.1 L30.6 32.9 L58.9 34.2 Z" />
+        <path android:fillColor="#F5EF3D" android:strokeColor="#F5EF3D" android:strokeWidth="4"
+            android:strokeLineJoin="round" android:pathData="M74.6 10.5 L82.1 37.9 L109.5 45.4 L85.8 61.1 L87.1 89.4 L64.9 71.8 L18.0 102.0 L48.2 55.1 L30.6 32.9 L58.9 34.2 Z" />
     </group>
 </vector>

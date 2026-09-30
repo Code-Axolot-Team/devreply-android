@@ -4,6 +4,24 @@ Released versions stay supported: the API only grows, and every released version
 against the server on every change. Features added later may be missing in an older version; nothing it
 uses breaks.
 
+## 0.5.0
+
+- 34 languages (adds Arabic, Catalan, Croatian, Czech, Danish, Finnish, Hebrew, Hindi, Hungarian, Indonesian, Malay,
+  Norwegian, European Portuguese, Romanian, Slovak, Swedish, Thai, Vietnamese, Traditional Chinese). Hebrew and Arabic
+  lay the chat out right to left. Old language codes (iw, in, no) are understood.
+- `present(…, askName = false)`: no name form while that messenger is open (e.g. from a failed purchase); the chat
+  goes straight to the composer. The email ask after the first message stays.
+- Button replies (0.5.0): a team question with 2–5 answer buttons under it; a tap sends the label as the user's
+  message with the answer, the chosen button stays highlighted and the others go quiet (older versions show the text version).
+- Same device after logout (0.5.0): a random device key, kept encrypted through `logout()`, goes with each install
+  registration; when `login` gets the same account's earlier chats back on this device, the list and the open chat reload.
+- Live updates (0.5.0): while the messenger is on screen, replies arrive over a WebSocket the moment they're sent
+  (a small built-in client, no dependencies); it reconnects and resumes after a drop, and the 3 s poll runs only while it's down.
+- Replies from the team and agents in Markdown (the `markdown` block, `min_sdk` 0.5.0): bold, italic, strike, code,
+  links, headings, lists, code blocks and quotes, drawn natively. Older versions show the plain-text fallback.
+- The unread bubble wears DevReply's new logo: the "Tilt" star on a black circle with a pink shadow.
+- DevReply's notifications use the star as their icon.
+
 ## 0.4.4
 
 * `DevReply.present(context, category, message, attributes)`: `message` prefills the composer of the new

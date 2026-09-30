@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Version of this SDK. Sent on install registration and compared with each block's `min_sdk`. */
-public const val DEVREPLY_SDK_VERSION: String = "0.4.4"
+public const val DEVREPLY_SDK_VERSION: String = "0.5.0"
 
 /** What a conversation is about. Set by the start button the user picked (spec 05). */
 public enum class DevReplyCategory(internal val wire: String) {
@@ -150,6 +150,8 @@ internal data class Message(
     val createdAt: Instant,
     /** Who replied (team messages from 0.4 on). Null: no label. */
     val persona: Persona? = null,
+    /** A user message that answers a buttons question (0.5.0): which question, which option. */
+    val answer: Answer? = null,
 ) {
     enum class Author { User, Admin, Agent, System }
 
@@ -171,9 +173,34 @@ internal data class Message(
             },
             blocks = json.optJSONArray("blocks").lossy(Block::parse),
             persona = if (json.str("author") == "user") null else runCatching { Persona.parse(json.optJSONObject("persona")) }.getOrNull(),
+            // On the message's text block (or the message itself); only the user's messages answer.
+            answer = if (json.str("author") != "user") null else Answer.parse(json.optJSONObject("answer"))
+                ?: json.optJSONArray("blocks")?.let { a -> (0 until a.length()).firstNotNullOfOrNull { Answer.parse(a.optJSONObject(it)?.optJSONObject("answer")) } },
         )
     }
 }
+
+/** A tap on a button of a buttons question (spec 05, 0.5.0): sent with the user's message, read back from it. */
+internal data class Answer(val messageId: UUID, val optionId: String) {
+    fun json(): JSONObject = JSONObject().put("message_id", messageId.toString()).put("option_id", optionId)
+
+    companion object {
+        fun parse(json: JSONObject?): Answer? {
+            if (json == null) return null
+            val id = json.str("message_id")?.let { runCatching { UUID.fromString(it) }.getOrNull() } ?: return null
+            val option = json.str("option_id")?.takeIf { it.isNotEmpty() } ?: return null
+            return Answer(id, option)
+        }
+    }
+}
+
+/**
+ * The option chosen for the buttons question [question]: from a user message that answers it, else from an
+ * answer still being sent ([sending]). Null: not answered yet (the buttons are live).
+ */
+internal fun chosenOption(question: UUID, messages: List<Message>, sending: List<Answer> = emptyList()): String? =
+    messages.firstNotNullOfOrNull { m -> m.answer?.takeIf { m.isFromUser && it.messageId == question }?.optionId }
+        ?: sending.firstOrNull { it.messageId == question }?.optionId
 
 /**
  * A typed message block (spec 05). Unknown types, and types newer than this SDK, fall back to
@@ -186,21 +213,52 @@ internal sealed interface Block {
     data class File(val url: String, val name: String, val size: Int?, val mime: String?) : Block
     data class Unsupported(val fallback: String) : Block
 
+    /**
+     * A team or agent reply in DevReply Markdown (0.5.0), parsed once when decoded. [fallback] is its plain
+     * text (the server's, or the same parse's): what previews and anything that can't show formatting use.
+     */
+    data class Markdown(val text: String, val nodes: List<com.devreply.sdk.Markdown.Node>, val fallback: String) : Block
+
+    /**
+     * A question from the team with 2 to 5 answers as buttons (0.5.0). [text] is the question in Markdown,
+     * parsed once; [question] its plain text, what previews show. [fallback]: the server's text version.
+     */
+    data class Buttons(
+        val text: String,
+        val nodes: List<com.devreply.sdk.Markdown.Node>,
+        val question: String,
+        val options: List<Option>,
+        val fallback: String,
+    ) : Block {
+        data class Option(val id: String, val label: String)
+    }
+
     val plainText: String
         get() = when (this) {
             is Text -> text
             is Image -> t("photo")
             is File -> name
             is Unsupported -> fallback
+            is Markdown -> fallback
+            is Buttons -> question
         }
 
     companion object {
-        fun parse(json: JSONObject): Block {
+        /** [sdk]: the version compared with `min_sdk` (this SDK's; tests pass another). */
+        fun parse(json: JSONObject, sdk: String = DEVREPLY_SDK_VERSION): Block {
             val fallback = json.str("fallback") ?: t("unsupported")
             val minSdk = json.str("min_sdk")
-            if (minSdk != null && isVersion(DEVREPLY_SDK_VERSION, olderThan = minSdk)) return Unsupported(fallback)
+            if (minSdk != null && isVersion(sdk, olderThan = minSdk)) return Unsupported(fallback)
             return when (json.str("type")) {
                 "text" -> Text(json.str("text") ?: fallback, json.str("key"))
+                // The user's own messages stay plain text; this is for the team's and agents' replies.
+                "markdown" -> json.str("text")?.let { md ->
+                    runCatching {
+                        val nodes = com.devreply.sdk.Markdown.parse(md)
+                        Markdown(md, nodes, json.str("fallback") ?: com.devreply.sdk.Markdown.plain(nodes))
+                    }.getOrNull()
+                } ?: Unsupported(json.str("fallback") ?: json.str("text") ?: fallback)
+                "buttons" -> buttons(json) ?: Unsupported(json.str("fallback") ?: json.str("text") ?: fallback)
                 "image" -> json.str("url")?.let { Image(it, json.int("width"), json.int("height")) } ?: Unsupported(t("photo"))
                 "file" -> json.str("url")?.let {
                     File(it, json.str("name") ?: t("file"), json.int("size"), json.str("mime"))
@@ -208,6 +266,19 @@ internal sealed interface Block {
                 else -> Unsupported(fallback)
             }
         }
+
+        /** A question with 2 to 5 usable options (an id and a label each; the first of a repeated id), else null. */
+        private fun buttons(json: JSONObject): Buttons? = runCatching {
+            val md = json.str("text")?.takeIf { it.isNotBlank() } ?: return null
+            val options = json.optJSONArray("options").lossy { o ->
+                val id = o.str("id")?.takeIf { it.isNotEmpty() } ?: error("no id")
+                Buttons.Option(id, o.str("label")?.trim()?.takeIf { it.isNotEmpty() } ?: error("no label"))
+            }.distinctBy { it.id }.take(5)
+            if (options.size < 2) return null
+            val nodes = com.devreply.sdk.Markdown.parse(md)
+            val question = com.devreply.sdk.Markdown.plain(nodes).ifBlank { md }
+            Buttons(md, nodes, question, options, json.str("fallback") ?: question)
+        }.getOrNull()
 
         fun isVersion(a: String, olderThan: String): Boolean {
             val pa = a.split(".").map { it.toIntOrNull() ?: 0 }
@@ -233,10 +304,13 @@ internal data class MessagesPage(val conversation: Conversation, val messages: L
 
 internal data class StartedConversation(val conversation: Conversation, val message: Message)
 
-/** What the end user told us about themselves. */
-internal data class Profile(val name: String?, val email: String?) {
+/**
+ * What the end user told us about themselves. [restored] (0.5.0): `login` moved this install back to the
+ * user it had before a logout on this device (spec 03, same device after logout): their conversations are back.
+ */
+internal data class Profile(val name: String?, val email: String?, val restored: Boolean = false) {
     companion object {
-        fun parse(json: JSONObject) = Profile(json.str("name"), json.str("email"))
+        fun parse(json: JSONObject) = Profile(json.str("name"), json.str("email"), json.opt("restored") == true)
     }
 }
 

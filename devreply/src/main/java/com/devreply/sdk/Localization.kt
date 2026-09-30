@@ -40,13 +40,40 @@ internal object L10n {
             val tag = raw.trim().replace('_', '-').lowercase(Locale.ROOT)
             if (tag.isEmpty()) continue
             DevReplyStrings.languages.firstOrNull { it.lowercase(Locale.ROOT) == tag }?.let { return it }
-            if (tag.startsWith("pt")) return "pt-BR"
-            if (tag.startsWith("zh")) return "zh-Hans"
+            val special = specialCase(tag)
+            DevReplyStrings.languages.firstOrNull { it.lowercase(Locale.ROOT) == special }?.let { return it }
             val base = tag.substringBefore('-')
             DevReplyStrings.languages.firstOrNull { it.lowercase(Locale.ROOT) == base }?.let { return it }
         }
         return "en"
     }
+
+    /**
+     * The cases a plain language match gets wrong: Chinese by script, Portuguese by country, and the old
+     * codes Java and Android still send (iw, in, no). Lowercase in and out; "" when none applies.
+     */
+    fun specialCase(tag: String): String {
+        val parts = tag.split('-')
+        val base = parts.first()
+        val rest = parts.drop(1)
+        val region = rest.firstOrNull { it.length == 2 || (it.length == 3 && it.all(Char::isDigit)) }
+        return when (base) {
+            "zh" -> when {
+                "hant" in rest -> "zh-hant"
+                "hans" in rest -> "zh-hans"
+                region in setOf("tw", "hk", "mo") -> "zh-hant"
+                else -> "zh-hans"
+            }
+            "pt" -> if (region == null || region == "br") "pt-br" else "pt-pt"
+            "iw" -> "he"
+            "in" -> "id"
+            "no", "nn" -> "nb"
+            else -> ""
+        }
+    }
+
+    /** The chat's language is written right to left (Hebrew, Arabic): the chat lays out from the right. */
+    val isRtl: Boolean get() = language in DevReplyStrings.rtl
 
     /** The text for [key] in the chat's language, with `{name}` placeholders filled in. */
     fun t(key: String, vararg args: Pair<String, Any?>): String {

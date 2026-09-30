@@ -42,7 +42,8 @@ class LocalizationTest {
 
     @Test fun everyLanguageHasEveryText() {
         val keys = DevReplyStrings.table("en").keys
-        assertEquals(15, DevReplyStrings.languages.size)
+        assertEquals(34, DevReplyStrings.languages.size)
+        assertEquals(setOf("ar", "he"), DevReplyStrings.rtl)
         for (lang in DevReplyStrings.languages) {
             val table = DevReplyStrings.table(lang)
             assertEquals("$lang keys", keys, table.keys)

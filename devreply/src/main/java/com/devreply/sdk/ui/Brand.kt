@@ -245,7 +245,9 @@ internal fun Kicker(text: String, modifier: Modifier = Modifier, inverted: Boole
         text.uppercase(),
         modifier
             .then(if (inverted) Modifier.background(theme.onBrand).padding(horizontal = 8.dp, vertical = 4.dp) else Modifier),
-        style = text(12.sp, FontWeight.Bold, if (inverted) theme.brand else theme.ink).copy(letterSpacing = 1.2.sp),
+        // No letter spacing in Arabic and Hebrew: it breaks Arabic's joined letters.
+        style = text(12.sp, FontWeight.Bold, if (inverted) theme.brand else theme.ink)
+            .copy(letterSpacing = if (com.devreply.sdk.L10n.isRtl) 0.sp else 1.2.sp),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )

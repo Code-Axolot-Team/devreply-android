@@ -27,7 +27,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Code-Axolot-Team:devreply-android:0.4.4")
+    implementation("com.github.Code-Axolot-Team:devreply-android:0.5.0")
 }
 ```
 
@@ -53,8 +53,8 @@ DevReply.setLocale("es")              // your app's own language setting; null f
 ```
 
 Each reply shows who wrote it (the teammate's name, title and photo) and the header shows your app icon. The chat
-speaks the device's language (15 languages: English, Spanish, Portuguese, French, German, Italian, Dutch, Polish,
-Russian, Ukrainian, Turkish, Greek, Japanese, Korean, Chinese).
+speaks the device's language: 34 languages, the same set as iOS, including Hebrew and Arabic, which lay
+out right to left (English otherwise).
 
 Never put a secret key (`sk_…`) in an app.
 
@@ -71,6 +71,8 @@ DevReply.present(
 `message` prefills the composer of the new conversation (the user can edit it before sending). `attributes`
 are that conversation's context: text, number or true/false, up to 20, names of 1–40 letters, digits,
 `_ - .` or space. They go with the first conversation started from this `present`, then are dropped.
+`askName = false` skips "Before we start" (the name form) while that messenger is open, for a screen where one
+tap to the message matters more than a name, like a failed purchase. The email ask after the first message stays.
 
 ### Switched off in the dashboard
 

@@ -146,6 +146,8 @@ public object DevReply {
      *   the user came from, an order id…): text, number or true/false, up to 20, names of 1–40 letters,
      *   digits, `_ - .` or space. Sent with the first conversation the user starts from here, then
      *   dropped (also when the messenger closes). Values the server would refuse are left out.
+     * - [askName] `false` skips "Before we start" (the name form) while this messenger is open, e.g. from a
+     *   failed purchase, where one tap to the message matters more than a name. The team sees the user unnamed.
      *
      * ```kotlin
      * DevReply.present(context, DevReplyCategory.Bug, "Export fails: ", mapOf("screen" to "export", "items" to 3))
@@ -161,13 +163,14 @@ public object DevReply {
         category: DevReplyCategory? = null,
         message: String? = null,
         attributes: Map<String, Any> = emptyMap(),
+        askName: Boolean = true,
     ): Boolean {
         if (Messenger.client == null) {
             android.util.Log.w("DevReply", "DevReply.present: call DevReply.configure first")
             return false
         }
         if (!Messenger.isAvailable) return false
-        Messenger.startPresentation(message, attributes)
+        Messenger.startPresentation(message, attributes, askName)
         val intent = Intent(context, DevReplyActivity::class.java)
         if (category != null) intent.putExtra(DevReplyActivity.EXTRA_CATEGORY, category.wire)
         if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

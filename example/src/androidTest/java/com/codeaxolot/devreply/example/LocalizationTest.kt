@@ -18,7 +18,7 @@ import java.util.regex.Pattern
  * (the example app passes the `devreply.locale` extra), then home, the name form, the composer and
  * the notice in that language, and a team reply arriving under its persona label.
  *
- * Arguments: `-e locale es|de`, `-e nonce …`, `-e reply true` when a script answers
+ * Arguments: `-e locale es|de|he|ar`, `-e nonce …`, `-e reply true` when a script answers
  * "L10n test <nonce>" with "Reply <nonce>" from the dashboard API. Clear the app's data first.
  */
 @RunWith(AndroidJUnit4::class)
@@ -36,8 +36,11 @@ class LocalizationTest {
     )
 
     private val expected = mapOf(
-        "es" to Expected("¡Hola! 👋", "Inicia una conversación", "Suele responder en 3 días hábiles", "Antes de empezar", "Mensaje…", "¡Gracias, lo recibimos!"),
-        "de" to Expected("Hallo 👋", "Unterhaltung beginnen", "Antwortet meist innerhalb von 3 Werktagen", "Bevor es losgeht", "Nachricht…", "Danke, ist angekommen!"),
+        "es" to Expected("¡Hola! 👋", "Inicia una conversación", "Suele responder", "Antes de empezar", "Mensaje…", "¡Gracias, lo recibimos!"),
+        "de" to Expected("Hallo 👋", "Unterhaltung beginnen", "Antwortet meist", "Bevor es losgeht", "Nachricht…", "Danke, ist angekommen!"),
+        // Right to left (screenshots for review).
+        "he" to Expected("שלום 👋", "התחלת שיחה", "בדרך כלל עונים", "לפני שמתחילים", "הודעה…", "תודה, קיבלנו!"),
+        "ar" to Expected("مرحبًا 👋", "ابدأ محادثة", "يرد عادةً", "قبل أن نبدأ", "رسالة…", "شكرًا، وصلتنا رسالتك!"),
     ).getValue(locale)
 
     private fun text(s: String) = By.text(Pattern.compile(Pattern.quote(s), Pattern.CASE_INSENSITIVE))
@@ -55,7 +58,9 @@ class LocalizationTest {
         // Home: DevReply's default texts, and the reply time from its preset, in that language.
         assertNotNull("greeting", device.wait(Until.findObject(text(expected.greeting)), 15_000))
         assertNotNull("start title", device.findObject(text(expected.start)))
-        assertNotNull("reply time", device.wait(Until.findObject(text(expected.replyTime)), 15_000))
+        // The reply time is whatever the test app has set: its sentence starts the same for every preset.
+        val replyTime = By.text(Pattern.compile(Pattern.quote(expected.replyTime) + ".*"))
+        assertNotNull("reply time", device.wait(Until.findObject(replyTime), 15_000))
         Thread.sleep(1_500)
         snapshot("and-l10n-$locale-home")
 
@@ -65,11 +70,14 @@ class LocalizationTest {
         )
         if (composerOrName.resourceName == "devreply.profile.name") {
             assertNotNull("name form", device.findObject(text(expected.kicker)))
+            snapshot("and-l10n-$locale-name")
             composerOrName.click()
             composerOrName.text = "Mia"
             device.findObject(By.res("devreply.profile.save")).click()
         }
         assertNotNull("composer placeholder", device.wait(Until.findObject(text(expected.composer)), 10_000))
+        if (keyboardShown()) device.pressBack()
+        snapshot("and-l10n-$locale-composer")
         if (!expectReply) return
 
         val composer = device.findObject(By.res("devreply.composer"))

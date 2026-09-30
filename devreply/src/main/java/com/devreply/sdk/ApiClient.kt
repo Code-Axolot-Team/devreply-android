@@ -23,10 +23,11 @@ internal sealed class DevReplyError(message: String) : Exception(message) {
 }
 
 /** The public API (spec 07): `pk_` registers an install, the `it_` token does everything else. */
-internal class ApiClient(val baseUrl: String) {
+internal open class ApiClient(val baseUrl: String) {
 
-    suspend fun registerInstall(publicKey: String, device: DeviceInfo): String {
-        val body = device.json().put("public_key", publicKey)
+    /** [deviceKey]: this app's key on this device (0.5.0; spec 03), so a later login can restore the user. */
+    suspend fun registerInstall(publicKey: String, device: DeviceInfo, deviceKey: String? = null): String {
+        val body = installBody(publicKey, device, deviceKey)
         val json = try {
             send("POST", "v1/installs", token = null, body = body)
         } catch (e: DevReplyError.Unauthenticated) {
@@ -60,13 +61,23 @@ internal class ApiClient(val baseUrl: String) {
     suspend fun messages(token: String, conversation: UUID): MessagesPage =
         MessagesPage.parse(send("GET", "v1/conversations/$conversation/messages", token) as JSONObject)
 
-    suspend fun sendMessage(token: String, conversation: UUID, text: String, attachments: List<String>): Message =
-        Message.parse(send("POST", "v1/conversations/$conversation/messages", token, messageBody(text, null, attachments)) as JSONObject)
+    /**
+     * [answer]: the message answers a buttons question (0.5.0). The server refuses a second answer, or an
+     * option that isn't that question's, with 409.
+     */
+    suspend fun sendMessage(token: String, conversation: UUID, text: String, attachments: List<String>, answer: Answer? = null): Message =
+        Message.parse(send("POST", "v1/conversations/$conversation/messages", token, messageBody(text, null, attachments, answer)) as JSONObject)
 
     /** The chat's language changed (setLocale, or the device's): the team sees it next to the user. */
     suspend fun updateLocale(token: String, locale: String) {
         send("PATCH", "v1/install", token, JSONObject().put("locale", locale))
     }
+
+    /**
+     * A single-use, 60 s URL for the live WebSocket (0.5.0): `wss://…/v1/live/ws?ticket=…`. 503 (live
+     * switched off, or full) throws [DevReplyError.Unavailable]: the chat polls.
+     */
+    suspend fun liveTicket(token: String): String = (send("POST", "v1/live", token) as JSONObject).getString("url")
 
     /** The device's FCM token, so replies reach it as pushes (the app forwards it: DevReply.registerPush). */
     suspend fun updatePushToken(token: String, pushToken: String) {
@@ -146,14 +157,20 @@ internal class ApiClient(val baseUrl: String) {
         return slot.id
     }
 
-    private fun messageBody(text: String, category: DevReplyCategory?, attachments: List<String>) =
-        JSONObject()
-            .put("text", text)
-            .put("category", category?.wire ?: JSONObject.NULL)
-            .put("attachment_ids", JSONArray(attachments))
+    internal companion object {
+        fun installBody(publicKey: String, device: DeviceInfo, deviceKey: String?): JSONObject =
+            device.json().put("public_key", publicKey).apply { if (deviceKey != null) put("device_key", deviceKey) }
 
-    /** Returns the parsed JSON body (object or array). */
-    private suspend fun send(method: String, path: String, token: String?, body: JSONObject? = null): Any =
+        fun messageBody(text: String, category: DevReplyCategory?, attachments: List<String>, answer: Answer? = null): JSONObject =
+            JSONObject()
+                .put("text", text)
+                .put("category", category?.wire ?: JSONObject.NULL)
+                .put("attachment_ids", JSONArray(attachments))
+                .apply { if (answer != null) put("answer", answer.json()) }
+    }
+
+    /** Returns the parsed JSON body (object or array). Open for unit tests (a fake server in memory). */
+    internal open suspend fun send(method: String, path: String, token: String?, body: JSONObject? = null): Any =
         withContext(Dispatchers.IO) {
             val (status, text) = try {
                 val c = URL(baseUrl.trimEnd('/') + "/" + path).openConnection() as HttpURLConnection
@@ -180,20 +197,24 @@ internal class ApiClient(val baseUrl: String) {
             } catch (e: IOException) {
                 throw DevReplyError.Network
             }
-            when (status) {
-                in 200..299 -> try {
-                    val trimmed = text.trimStart()
-                    if (trimmed.startsWith("[")) JSONArray(trimmed) else JSONObject(trimmed.ifEmpty { "{}" })
-                } catch (e: Exception) {
-                    throw DevReplyError.Server(status)
-                }
-                401 -> throw DevReplyError.Unauthenticated
-                404 -> throw DevReplyError.NotFound
-                503 -> throw DevReplyError.Unavailable
-                400 -> throw DevReplyError.Invalid(
-                    runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrDefault("Invalid request"),
-                )
-                else -> throw DevReplyError.Server(status)
+            result(status, text)
+        }
+
+    /** The parsed body of a success, or the error for the status. */
+    protected fun result(status: Int, text: String): Any =
+        when (status) {
+            in 200..299 -> try {
+                val trimmed = text.trimStart()
+                if (trimmed.startsWith("[")) JSONArray(trimmed) else JSONObject(trimmed.ifEmpty { "{}" })
+            } catch (e: Exception) {
+                throw DevReplyError.Server(status)
             }
+            401 -> throw DevReplyError.Unauthenticated
+            404 -> throw DevReplyError.NotFound
+            503 -> throw DevReplyError.Unavailable
+            400 -> throw DevReplyError.Invalid(
+                runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrDefault("Invalid request"),
+            )
+            else -> throw DevReplyError.Server(status)
         }
 }

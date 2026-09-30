@@ -13,13 +13,19 @@ android {
     defaultConfig {
         minSdk = 26
         consumerProguardFiles("consumer-rules.pro")
+        // Device tests of the library's own screens (src/androidTest): no API key, no network.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
-    testOptions { unitTests.isReturnDefaultValues = true }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+        // The device-test APK: current target, so Android shows no "built for an older version" dialog.
+        targetSdk = 36
+    }
     publishing {
         singleVariant("release") { withSourcesJar() }
     }
@@ -60,4 +66,9 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.org.json) // real org.json on the JVM (android.jar only has stubs)
+
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.uiautomator)
 }

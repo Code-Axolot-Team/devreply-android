@@ -10,15 +10,48 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/** Where the SDK keeps its secrets by name: the install token, the device key, queued deletions. */
+internal interface SecretStore {
+    fun token(account: String): String?
+    fun setToken(token: String, account: String)
+    fun deleteToken(account: String)
+}
+
+/**
+ * This app's key on this device (spec 03, same device after logout, 0.5.0): 256 random bits, base64url, made
+ * once and kept in the encrypted store. Logout and deleteUser never remove it (they forget the install's
+ * entries only); reinstalling the app clears it. Sent as `device_key` with every install registration, so
+ * the server can give the same account on the same device its conversations back.
+ */
+internal object DeviceKey {
+    /** Its entry in the store: one per app, whatever the key or server. */
+    const val ENTRY = "device_key"
+
+    fun generate(random: java.security.SecureRandom = java.security.SecureRandom()): String =
+        java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(32).also(random::nextBytes))
+
+    /** A usable key: 32 bytes of base64url without padding (43 characters). */
+    fun isValid(key: String): Boolean =
+        key.length == 43 && runCatching { java.util.Base64.getUrlDecoder().decode(key).size == 32 }.getOrDefault(false)
+
+    /** The stored key, or a new one saved now. */
+    fun get(store: SecretStore): String {
+        store.token(ENTRY)?.takeIf(::isValid)?.let { return it }
+        val key = generate()
+        store.setToken(key, ENTRY)
+        return key
+    }
+}
+
 /**
  * The install token, encrypted with an Android Keystore key that never leaves this device (spec 03,
  * the Keychain on iOS). A backup restored elsewhere can't decrypt it, so that device registers anew.
  * One entry per API host + public key.
  */
-internal class TokenStore(context: Context) {
+internal class TokenStore(context: Context) : SecretStore {
     private val prefs = context.applicationContext.getSharedPreferences("com.devreply.sdk.install", Context.MODE_PRIVATE)
 
-    fun token(account: String): String? {
+    override fun token(account: String): String? {
         val stored = prefs.getString(account, null) ?: return null
         return runCatching {
             val bytes = Base64.decode(stored, Base64.NO_WRAP)
@@ -28,7 +61,7 @@ internal class TokenStore(context: Context) {
         }.getOrNull()
     }
 
-    fun setToken(token: String, account: String) {
+    override fun setToken(token: String, account: String) {
         runCatching {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, key())
@@ -37,7 +70,7 @@ internal class TokenStore(context: Context) {
         }
     }
 
-    fun deleteToken(account: String) {
+    override fun deleteToken(account: String) {
         prefs.edit().remove(account).apply()
     }
 

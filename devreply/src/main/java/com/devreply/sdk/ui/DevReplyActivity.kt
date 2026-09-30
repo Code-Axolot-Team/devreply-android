@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -65,6 +67,8 @@ internal class DevReplyActivity : ComponentActivity() {
                 LocalTheme provides theme,
                 // Selecting text in a bubble or the composer: handles and highlight in the theme's accent.
                 LocalTextSelectionColors provides TextSelectionColors(theme.accent, theme.accent.copy(alpha = 0.4f)),
+                // Hebrew and Arabic lay out from the right, whatever the app's own languages are.
+                LocalLayoutDirection provides if (com.devreply.sdk.L10n.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
             ) {
                 MessengerScreen(start = category, conversation = conversation, close = ::finish)
             }
@@ -102,6 +106,17 @@ internal class DevReplyActivity : ComponentActivity() {
             // on top keeps its own.)
             if (current?.get().let { it == null || it === this }) Messenger.endPresentation()
         }
+    }
+
+    /** On screen: the live channel opens (spec 05); off screen (closed, or the app in the background): it closes. */
+    override fun onStart() {
+        super.onStart()
+        com.devreply.sdk.LiveUpdates.messengerVisible()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        com.devreply.sdk.LiveUpdates.messengerHidden()
     }
 
     override fun onResume() {

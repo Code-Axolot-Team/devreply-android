@@ -13,6 +13,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import com.devreply.sdk.Answer
+import com.devreply.sdk.Block
 import com.devreply.sdk.Conversation
 import com.devreply.sdk.DevReplyCategory
 import com.devreply.sdk.DevReplyError
@@ -112,6 +114,8 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
         val attachments: List<Staged>,
         val failure: String? = null,
         val id: UUID = UUID.randomUUID(),
+        /** A tap on a buttons question's option: sent with the message (0.5.0). */
+        val answer: Answer? = null,
     )
 
     var conversationId by mutableStateOf(existingId)
@@ -130,14 +134,41 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
         val id = conversationId ?: return
         val page = runCatching { Messenger.authorized { api, t -> api.messages(t, id) } }.getOrNull() ?: return
         conversation = page.conversation
-        if (page.messages != messages) messages = page.messages
+        // Live messages that arrived while this request was out stay (the next poll has them too).
+        val merged = messages.filter { m -> page.messages.none { it.id == m.id } && m.createdAt > (page.messages.lastOrNull()?.createdAt ?: java.time.Instant.MIN) }
+            .fold(page.messages) { list, m -> com.devreply.sdk.mergeMessage(list, m) }
+        if (merged != messages) messages = merged
+        page.messages.forEach { com.devreply.sdk.LiveUpdates.saw(it.id) }
         Messenger.upsert(page.conversation)
+    }
+
+    /** A message from the live channel for this conversation: added, or replacing the one with its id. */
+    fun receive(conversationId: UUID, message: Message) {
+        if (conversationId != this.conversationId) return
+        messages = com.devreply.sdk.mergeMessage(messages, message)
+        // "Marked as resolved" and the like change the conversation itself: fetch it.
+        if (message.author == Message.Author.System) Messenger.scope.launch { load() }
     }
 
     fun send(raw: String, attachments: List<Staged>) {
         val text = raw.trim()
         if (text.isEmpty() && attachments.isEmpty()) return
         val item = Pending(text, attachments)
+        pending = pending + item
+        sentCount++
+        Messenger.scope.launch { sending.withLock { deliver(item) } }
+    }
+
+    /**
+     * The option the user picked for the buttons question [question], or null while it's unanswered: from a
+     * user message that answers it, else from an answer being sent (so the buttons settle at once).
+     */
+    fun chosenOption(question: UUID): String? = com.devreply.sdk.chosenOption(question, messages, pending.mapNotNull { it.answer })
+
+    /** A tap on an option: sends its label as the user's message, with the answer. Once per question. */
+    fun answer(question: Message, option: Block.Buttons.Option) {
+        if (chosenOption(question.id) != null) return
+        val item = Pending(option.label, emptyList(), answer = Answer(question.id, option.id))
         pending = pending + item
         sentCount++
         Messenger.scope.launch { sending.withLock { deliver(item) } }
@@ -160,31 +191,47 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
             }
             val id = conversationId
             if (id != null) {
-                val message = Messenger.authorized { api, t -> api.sendMessage(t, id, item.text, ids) }
-                messages = messages + message
+                val message = Messenger.authorized { api, t -> api.sendMessage(t, id, item.text, ids, item.answer) }
+                // The live channel may have brought it already: never twice.
+                messages = com.devreply.sdk.mergeMessage(messages, message)
+                com.devreply.sdk.LiveUpdates.saw(message.id)
                 Events.emit(DevReplyEvent.MessageSent(id.toString()))
             } else {
                 // The app's context (DevReply.present) goes with the first conversation of this presentation only.
                 val context = Messenger.presentContext
                 val started = Messenger.authorized { api, t -> api.startConversation(t, category, item.text, ids, context) }
-                Messenger.endPresentation()
+                Messenger.presentationConversationStarted()
                 conversationId = started.conversation.id
                 conversation = started.conversation
-                messages = messages + started.message
+                messages = com.devreply.sdk.mergeMessage(messages, started.message)
+                com.devreply.sdk.LiveUpdates.saw(started.message.id)
                 Messenger.upsert(started.conversation)
                 EventHub.firstMessage(started.conversation.id.toString(), started.conversation.category ?: category)
                     .forEach(Events::emit)
             }
             pending = pending.filter { it.id != item.id }
-        } catch (e: Exception) {
-            val reason = when (e) {
-                is DevReplyError.Unavailable -> com.devreply.sdk.t("failed.attachments")
-                is DevReplyError.Network -> com.devreply.sdk.t("failed.offline")
-                is DevReplyError.Invalid -> com.devreply.sdk.t("failed.reason", "reason" to e.message)
-                else -> com.devreply.sdk.t("failed.generic")
+        } catch (e: DevReplyError.Server) {
+            if (e.status == 409 && item.answer != null) {
+                // Answered already (on another device, or a tap that got through before): show what the server has.
+                pending = pending.filter { it.id != item.id }
+                load()
+            } else {
+                failed(item, e)
             }
-            pending = pending.map { if (it.id == item.id) it.copy(failure = reason) else it }
+        } catch (e: Exception) {
+            failed(item, e)
         }
+    }
+
+    /** Shows why [item] didn't go; a tap on it tries again. */
+    private fun failed(item: Pending, e: Exception) {
+        val reason = when (e) {
+            is DevReplyError.Unavailable -> com.devreply.sdk.t("failed.attachments")
+            is DevReplyError.Network -> com.devreply.sdk.t("failed.offline")
+            is DevReplyError.Invalid -> com.devreply.sdk.t("failed.reason", "reason" to e.message)
+            else -> com.devreply.sdk.t("failed.generic")
+        }
+        pending = pending.map { if (it.id == item.id) it.copy(failure = reason) else it }
     }
 }
 
