@@ -1,7 +1,11 @@
 package com.devreply.sdk
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -22,8 +26,12 @@ internal sealed class DevReplyError(message: String) : Exception(message) {
     object Network : DevReplyError("network")
 }
 
-/** The public API (spec 07): `pk_` registers an install, the `it_` token does everything else. */
-internal open class ApiClient(val baseUrl: String) {
+/**
+ * The public API (spec 07): `pk_` registers an install, the `it_` token does everything else.
+ * [deadlineMs]: the longest one request may take in all (0.5.1). The socket timeouts only catch a silent
+ * read; a server that trickles bytes, a stuck name lookup or several slow addresses would wait for ever.
+ */
+internal open class ApiClient(val baseUrl: String, private val deadlineMs: Long = DEADLINE_MS) {
 
     /** [deviceKey]: this app's key on this device (0.5.0; spec 03), so a later login can restore the user. */
     suspend fun registerInstall(publicKey: String, device: DeviceInfo, deviceKey: String? = null): String {
@@ -134,30 +142,27 @@ internal open class ApiClient(val baseUrl: String) {
             uploadUrl = json.getString("upload_url"),
             uploadHeaders = headers?.keys()?.asSequence()?.associateWith { headers.getString(it) } ?: emptyMap(),
         )
-        withContext(Dispatchers.IO) {
-            val status = try {
-                val c = URL(slot.uploadUrl).openConnection() as HttpURLConnection
-                try {
-                    c.requestMethod = "PUT"
-                    c.connectTimeout = 20_000
-                    c.readTimeout = 60_000
-                    c.doOutput = true
-                    c.setFixedLengthStreamingMode(attachment.data.size)
-                    slot.uploadHeaders.forEach { (k, v) -> c.setRequestProperty(k, v) }
-                    c.outputStream.use { it.write(attachment.data) }
-                    c.responseCode
-                } finally {
-                    c.disconnect()
-                }
-            } catch (e: IOException) {
-                throw DevReplyError.Network
-            }
-            if (status !in 200..299) throw DevReplyError.Server(status)
+        val status = exchange(URL(slot.uploadUrl), UPLOAD_DEADLINE_MS) { c ->
+            c.requestMethod = "PUT"
+            c.connectTimeout = 20_000
+            c.readTimeout = 60_000
+            c.doOutput = true
+            c.setFixedLengthStreamingMode(attachment.data.size)
+            slot.uploadHeaders.forEach { (k, v) -> c.setRequestProperty(k, v) }
+            c.outputStream.use { it.write(attachment.data) }
+            c.responseCode
         }
+        if (status !in 200..299) throw DevReplyError.Server(status)
         return slot.id
     }
 
     internal companion object {
+        const val DEADLINE_MS = 25_000L
+        const val UPLOAD_DEADLINE_MS = 120_000L
+
+        /** Where the blocking exchanges run; one past its deadline is left to end there, its connection closed. */
+        private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
         fun installBody(publicKey: String, device: DeviceInfo, deviceKey: String?): JSONObject =
             device.json().put("public_key", publicKey).apply { if (deviceKey != null) put("device_key", deviceKey) }
 
@@ -170,35 +175,51 @@ internal open class ApiClient(val baseUrl: String) {
     }
 
     /** Returns the parsed JSON body (object or array). Open for unit tests (a fake server in memory). */
-    internal open suspend fun send(method: String, path: String, token: String?, body: JSONObject? = null): Any =
-        withContext(Dispatchers.IO) {
-            val (status, text) = try {
-                val c = URL(baseUrl.trimEnd('/') + "/" + path).openConnection() as HttpURLConnection
-                try {
-                    c.requestMethod = method // Android's HttpURLConnection (OkHttp inside) supports PATCH
-                    c.connectTimeout = 20_000
-                    c.readTimeout = 20_000
-                    c.setRequestProperty("Accept", "application/json")
-                    c.setRequestProperty("User-Agent", "devreply-android/$DEVREPLY_SDK_VERSION")
-                    if (token != null) c.setRequestProperty("Authorization", "Bearer $token")
-                    if (body != null) {
-                        val bytes = body.toString().toByteArray()
-                        c.doOutput = true
-                        c.setRequestProperty("Content-Type", "application/json")
-                        c.setFixedLengthStreamingMode(bytes.size)
-                        c.outputStream.use { it.write(bytes) }
-                    }
-                    val code = c.responseCode
-                    val stream = if (code in 200..299) c.inputStream else c.errorStream
-                    code to (stream?.bufferedReader()?.use { it.readText() } ?: "")
-                } finally {
-                    c.disconnect()
-                }
+    internal open suspend fun send(method: String, path: String, token: String?, body: JSONObject? = null): Any {
+        val (status, text) = exchange(URL(baseUrl.trimEnd('/') + "/" + path), deadlineMs) { c ->
+            c.requestMethod = method // Android's HttpURLConnection (OkHttp inside) supports PATCH
+            c.connectTimeout = 20_000
+            c.readTimeout = 20_000
+            c.setRequestProperty("Accept", "application/json")
+            c.setRequestProperty("User-Agent", "devreply-android/$DEVREPLY_SDK_VERSION")
+            if (token != null) c.setRequestProperty("Authorization", "Bearer $token")
+            if (body != null) {
+                val bytes = body.toString().toByteArray()
+                c.doOutput = true
+                c.setRequestProperty("Content-Type", "application/json")
+                c.setFixedLengthStreamingMode(bytes.size)
+                c.outputStream.use { it.write(bytes) }
+            }
+            val code = c.responseCode
+            val stream = if (code in 200..299) c.inputStream else c.errorStream
+            code to (stream?.bufferedReader()?.use { it.readText() } ?: "")
+        }
+        return result(status, text)
+    }
+
+    /**
+     * One HTTP exchange on the IO threads, never the caller's. Past [deadline] (or when the caller is
+     * cancelled) it's given up: the connection is closed, which ends a blocked read, and the request fails
+     * as [DevReplyError.Network], like a refused connection.
+     */
+    private suspend fun <T> exchange(url: URL, deadline: Long, block: (HttpURLConnection) -> T): T {
+        val c = url.openConnection() as HttpURLConnection // no I/O yet: that starts in block
+        val work = io.async {
+            try {
+                block(c)
             } catch (e: IOException) {
                 throw DevReplyError.Network
+            } finally {
+                c.disconnect()
             }
-            result(status, text)
         }
+        var done = false
+        try {
+            return (withTimeoutOrNull(deadline) { work.await() } ?: throw DevReplyError.Network).also { done = true }
+        } finally {
+            if (!done && work.isActive) io.launch { runCatching { c.disconnect() } }
+        }
+    }
 
     /** The parsed body of a success, or the error for the status. */
     protected fun result(status: Int, text: String): Any =

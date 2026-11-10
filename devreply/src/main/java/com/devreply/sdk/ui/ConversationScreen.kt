@@ -148,7 +148,13 @@ private sealed interface ChatItem {
 }
 
 @Composable
-internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategory?, back: () -> Unit) {
+internal fun ConversationScreen(
+    conversationId: UUID?,
+    category: DevReplyCategory?,
+    back: () -> Unit,
+    /** A start tile continued this conversation (0.5.1): "Start a new conversation" in its topic. */
+    startNew: (() -> Unit)? = null,
+) {
     val model = remember { ConversationModel(conversationId, category) }
     val theme = LocalTheme.current
     val config = Messenger.config
@@ -161,9 +167,13 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
     val focusManager = LocalFocusManager.current
     val hideKeyboardAfter = with(LocalDensity.current) { 90.dp.toPx() }
 
+    // The profile decides between the name form and the composer (0.5.1): loaded on its own, never behind
+    // the messages, and retried until it comes. At once again on Try again and when the chat is back on screen.
+    LaunchedEffect(Messenger.reloads, Messenger.profileRetries, Messenger.shown) {
+        Messenger.loadProfile()
+    }
     // Restarts (loads at once) when a login gave this device its earlier user's conversations back.
     LaunchedEffect(model.conversationId, Messenger.reloads) {
-        Messenger.loadProfileIfNeeded()
         while (true) {
             model.load()
             delay(3_000)
@@ -281,8 +291,10 @@ internal fun ConversationScreen(conversationId: UUID?, category: DevReplyCategor
                 }
             }
         }
+        if (startNew != null && model.conversation?.isClosed != true) StartNewBar(startNew)
         when {
-            Messenger.profile == null -> Spacer(Modifier.height(1.dp))
+            // Never an empty bottom: loading, then why it can't load, with Try again (retries go on meanwhile).
+            Messenger.profile == null -> ProfileLoading(Messenger.profileError)
             Messenger.needsName -> NameForm()
             else -> Column {
                 val showsEmailAsk = startedHere && !emailAskDone && Messenger.profile?.email.isNullOrBlank() &&
@@ -348,6 +360,48 @@ private fun Intro(category: DevReplyCategory) {
         }
         BasicText(title, style = display(26.sp).copy(textAlign = TextAlign.Center))
         BasicText(category.prompt, style = text(16.sp, FontWeight.Medium, theme.muted).copy(textAlign = TextAlign.Center))
+    }
+}
+
+/** Under a continued conversation: a new one in the same topic, one tap away (0.5.1). */
+@Composable
+private fun StartNewBar(startNew: () -> Unit) {
+    val label = com.devreply.sdk.t("home.new_conversation")
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.End) {
+        BrutalButton(startNew, Modifier.testTag("devreply.newconversation"), shadow = 3.dp, label = label) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                BasicText(label, style = text(14.sp, FontWeight.Bold))
+                Image(
+                    painterResource(R.drawable.devreply_ic_arrow_right), null, Modifier.size(16.dp),
+                    colorFilter = ColorFilter.tint(LocalTheme.current.ink),
+                )
+            }
+        }
+    }
+}
+
+/** Where the composer goes while the profile loads: a spinner, then the error with Try again. */
+@Composable
+private fun ProfileLoading(error: DevReplyError?) {
+    val theme = LocalTheme.current
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(theme.surface)
+            .drawBehind { drawRect(theme.line, size = size.copy(height = theme.stroke(3.dp).toPx())) }
+            .padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)
+            .heightIn(min = 46.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (error == null) {
+            CircularProgressIndicator(Modifier.size(24.dp).testTag("devreply.composer.loading"), color = theme.ink, strokeWidth = 3.dp)
+        } else {
+            Box(Modifier.testTag("devreply.composer.error")) { ErrorNote(error) { Messenger.retryProfile() } }
+        }
     }
 }
 

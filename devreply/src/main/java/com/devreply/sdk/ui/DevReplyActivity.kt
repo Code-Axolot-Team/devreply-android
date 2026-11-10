@@ -40,10 +40,13 @@ import androidx.compose.ui.graphics.toArgb
 import com.devreply.sdk.Messenger
 import java.util.UUID
 
-/** Where the messenger is: home, or one conversation (existing, or new in a category). */
+/**
+ * Where the messenger is: home, or one conversation (existing, or new in a category). [Chat.offersNew]: a
+ * start tile opened the topic's open conversation (0.5.1), so "Start a new conversation" is one tap away.
+ */
 internal sealed interface Route {
     data object Home : Route
-    data class Chat(val conversationId: UUID?, val category: DevReplyCategory?) : Route
+    data class Chat(val conversationId: UUID?, val category: DevReplyCategory?, val offersNew: Boolean = false) : Route
 }
 
 /**
@@ -111,11 +114,14 @@ internal class DevReplyActivity : ComponentActivity() {
     /** On screen: the live channel opens (spec 05); off screen (closed, or the app in the background): it closes. */
     override fun onStart() {
         super.onStart()
+        Messenger.isOnScreen = true
+        Messenger.shown++
         com.devreply.sdk.LiveUpdates.messengerVisible()
     }
 
     override fun onStop() {
         super.onStop()
+        Messenger.isOnScreen = false
         com.devreply.sdk.LiveUpdates.messengerHidden()
     }
 
@@ -171,7 +177,8 @@ private fun MessengerScreen(start: DevReplyCategory?, conversation: UUID?, close
             (slideInHorizontally(tween(260)) { if (forward) it else -it / 3 })
                 .togetherWith(slideOutHorizontally(tween(260)) { if (forward) -it / 3 else it })
         },
-        contentKey = { if (it is Route.Home) "home" else "chat" },
+        // Each conversation its own content: "Start a new conversation" slides a fresh one in.
+        contentKey = { it },
         label = "route",
     ) { current ->
         when (current) {
@@ -183,6 +190,8 @@ private fun MessengerScreen(start: DevReplyCategory?, conversation: UUID?, close
                 conversationId = current.conversationId,
                 category = current.category,
                 back = { stack = stack.dropLast(1) },
+                // In place of this one: back still goes home.
+                startNew = if (current.offersNew) ({ stack = stack.dropLast(1) + Route.Chat(null, current.category) }) else null,
             )
         }
     }
@@ -193,7 +202,7 @@ private val RouteStackSaver = androidx.compose.runtime.saveable.Saver<androidx.c
         state.value.map { r ->
             when (r) {
                 Route.Home -> "home"
-                is Route.Chat -> "chat|${r.conversationId ?: ""}|${r.category?.name ?: ""}"
+                is Route.Chat -> "chat|${r.conversationId ?: ""}|${r.category?.name ?: ""}|${if (r.offersNew) "new" else ""}"
             }
         }
     },
@@ -204,6 +213,7 @@ private val RouteStackSaver = androidx.compose.runtime.saveable.Saver<androidx.c
                 Route.Chat(
                     parts.getOrNull(1)?.takeIf { it.isNotEmpty() }?.let(UUID::fromString),
                     parts.getOrNull(2)?.takeIf { it.isNotEmpty() }?.let { DevReplyCategory.valueOf(it) },
+                    offersNew = parts.getOrNull(3) == "new",
                 )
             }
         })

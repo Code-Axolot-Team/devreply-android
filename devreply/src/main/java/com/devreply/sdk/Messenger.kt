@@ -6,11 +6,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,6 +47,17 @@ internal object Messenger {
         private set
 
     /**
+     * Why the profile (`GET /v1/me`) didn't load, while it's still missing (0.5.1): the conversation shows
+     * it with Try again instead of the composer, and keeps retrying. Null while loading.
+     */
+    var profileError by mutableStateOf<DevReplyError?>(null)
+        private set
+
+    /** Goes up on Try again under a failed profile load: the conversation tries again at once. */
+    var profileRetries by mutableIntStateOf(0)
+        private set
+
+    /**
      * Goes up when the user's conversations changed under the open screens (a login restored this device's
      * earlier user, spec 03): the open conversation reloads at once.
      */
@@ -53,6 +67,13 @@ internal object Messenger {
     /** The messenger is on screen / this conversation is on screen. Compose state: the unread bubble reads it. */
     var isPresented by mutableStateOf(false)
     var visibleConversation: UUID? = null
+
+    /**
+     * The messenger's activity is started (on screen, not behind another app), and how many times it came
+     * on screen: retries wait while it's away and start over when it's back (0.5.1).
+     */
+    var isOnScreen by mutableStateOf(false)
+    var shown by mutableIntStateOf(0)
 
     val unreadCount by derivedStateOf { conversations.sumOf { it.unread } }
 
@@ -232,25 +253,29 @@ internal object Messenger {
 
     suspend fun refresh() {
         if (client == null) return
-        try {
-            val (configJson, list, me) = coroutineScope {
-                val c = async { authorized { api, t -> api.config(t) } }
-                val l = async { authorized { api, t -> api.conversations(t) } }
-                val p = async { authorized { api, t -> api.profile(t) } }
-                Triple(c.await(), l.await(), p.await())
+        // The profile on its own (0.5.1): when it fails or hangs, the list and config still arrive on time.
+        coroutineScope {
+            launch {
+                runCatching { authorized { api, t -> api.profile(t) } }.getOrNull()?.let { profile = it }
             }
-            conversations = list
-            profile = me
-            val parsed = MessengerConfig.parse(configJson, config.appName)
-            if (parsed != config) {
-                config = parsed
-                cache(configJson)
+            try {
+                val (configJson, list) = coroutineScope {
+                    val c = async { authorized { api, t -> api.config(t) } }
+                    val l = async { authorized { api, t -> api.conversations(t) } }
+                    c.await() to l.await()
+                }
+                conversations = list
+                val parsed = MessengerConfig.parse(configJson, config.appName)
+                if (parsed != config) {
+                    config = parsed
+                    cache(configJson)
+                }
+                lastError = null
+            } catch (e: DevReplyError) {
+                lastError = e
+            } catch (e: Exception) {
+                lastError = DevReplyError.Network
             }
-            lastError = null
-        } catch (e: DevReplyError) {
-            lastError = e
-        } catch (e: Exception) {
-            lastError = DevReplyError.Network
         }
     }
 
@@ -259,10 +284,44 @@ internal object Messenger {
         profile = authorized { api, t -> api.updateProfile(t, name, email) }
     }
 
-    suspend fun loadProfileIfNeeded() {
+    /**
+     * Loads the profile until it's there (0.5.1; the composer waits for it): after a failure, [profileError]
+     * says why and the next try comes after [PROFILE_RETRY_MS] (1 s, 2 s, 5 s… then every 30 s). [wait]
+     * also holds the retries while the messenger is off screen. Cancelled when the conversation closes.
+     */
+    suspend fun loadProfile(wait: suspend (Long) -> Unit = ::waitOnScreen) {
         if (profile != null) return
-        profile = runCatching { authorized { api, t -> api.profile(t) } }.getOrNull()
+        profileError = null
+        var failures = 0
+        while (profile == null) {
+            try {
+                profile = authorized { api, t -> api.profile(t) }
+                break
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: DevReplyError) {
+                profileError = e
+            } catch (e: Exception) {
+                profileError = DevReplyError.Network
+            }
+            wait(PROFILE_RETRY_MS[minOf(failures++, PROFILE_RETRY_MS.size - 1)])
+        }
+        profileError = null
     }
+
+    /** Try again under a failed profile load: loading again at once. */
+    fun retryProfile() {
+        profileError = null
+        profileRetries++
+    }
+
+    /** [ms], then until the messenger is on screen. */
+    private suspend fun waitOnScreen(ms: Long) {
+        delay(ms)
+        snapshotFlow { isOnScreen }.first { it }
+    }
+
+    val PROFILE_RETRY_MS = longArrayOf(1_000, 2_000, 5_000, 10_000, 20_000, 30_000)
 
     // Name, email and attributes from the host app, applied once the install exists.
     private var hostUser: Pair<String?, String?>? = null
@@ -488,6 +547,7 @@ internal object Messenger {
         backoff = RegistrationBackoff()
         conversations = emptyList()
         profile = null
+        profileError = null
         lastError = null
     }
 

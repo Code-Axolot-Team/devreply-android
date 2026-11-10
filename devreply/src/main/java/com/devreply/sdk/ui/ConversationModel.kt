@@ -245,11 +245,27 @@ internal object ImageCache {
         cache.get(url)?.let { return it }
         val bitmap = withContext(Dispatchers.IO) {
             runCatching {
-                val bytes = java.net.URL(url).openStream().use { it.readBytes() }
+                val bytes = downloadImage(url)
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
             }.getOrNull()
         } ?: return null
         cache.put(url, bitmap)
         return bitmap
+    }
+}
+
+/**
+ * An image's bytes, with timeouts (0.5.1): a server that never answers fails the load (the spinner stays
+ * and the next appearance tries again) instead of holding an IO thread for ever.
+ */
+internal fun downloadImage(url: String, connectTimeoutMs: Int = 15_000, readTimeoutMs: Int = 30_000): ByteArray {
+    val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+    try {
+        c.connectTimeout = connectTimeoutMs
+        c.readTimeout = readTimeoutMs
+        if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode}")
+        return c.inputStream.use { it.readBytes() }
+    } finally {
+        c.disconnect()
     }
 }

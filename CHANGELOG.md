@@ -4,6 +4,19 @@ Released versions stay supported: the API only grows, and every released version
 against the server on every change. Features added later may be missing in an older version; nothing it
 uses breaks.
 
+## 0.5.1
+
+- The message box always appears: the profile (`GET /v1/me`) loads on its own, never behind the messages, and
+  retries (1 s, 2 s, 5 s… then every 30 s) while the chat is on screen, at once when it comes back. Meanwhile the
+  bottom shows a spinner, then "You seem to be offline." / "Something went wrong." with Try again; never empty.
+  Home's list and config update even when only the profile fails.
+- An unread reply comes first: home shows "New reply from {team}" with the reply's first words above "Start a
+  conversation"; a tap opens it. A start tile whose topic has an open conversation opens that conversation, with
+  "Start a new conversation" one tap away. `present(context, category, message, …)` still starts a new one.
+- Every request has a 25 s deadline (120 s for uploads) on top of the socket timeouts: a server that hangs or
+  trickles bytes now shows home's "can't connect" with Try again, like a refused connection.
+- Image downloads time out (15 s to connect, 30 s to read) instead of waiting for ever.
+
 ## 0.5.0
 
 - 34 languages (adds Arabic, Catalan, Croatian, Czech, Danish, Finnish, Hebrew, Hindi, Hungarian, Indonesian, Malay,

@@ -136,6 +136,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Open Settings",
         "push.channel" to "Replies",
         "a11y.unread" to "{count} unread",
+        "home.new_reply" to "New reply from {team}",
+        "home.new_conversation" to "Start a new conversation",
     )
 
     private fun ar(): Map<String, String> = mapOf(
@@ -228,6 +230,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "فتح الإعدادات",
         "push.channel" to "الردود",
         "a11y.unread" to "غير مقروءة: {count}",
+        "home.new_reply" to "رد جديد من {team}",
+        "home.new_conversation" to "ابدأ محادثة جديدة",
     )
 
     private fun ca(): Map<String, String> = mapOf(
@@ -320,6 +324,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Obre Configuració",
         "push.channel" to "Respostes",
         "a11y.unread" to "Sense llegir: {count}",
+        "home.new_reply" to "Nova resposta de {team}",
+        "home.new_conversation" to "Comença una conversa nova",
     )
 
     private fun cs(): Map<String, String> = mapOf(
@@ -412,6 +418,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Otevřít Nastavení",
         "push.channel" to "Odpovědi",
         "a11y.unread" to "Nepřečtené: {count}",
+        "home.new_reply" to "Nová odpověď od {team}",
+        "home.new_conversation" to "Začít novou konverzaci",
     )
 
     private fun da(): Map<String, String> = mapOf(
@@ -504,6 +512,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Åbn Indstillinger",
         "push.channel" to "Svar",
         "a11y.unread" to "Ulæste: {count}",
+        "home.new_reply" to "Nyt svar fra {team}",
+        "home.new_conversation" to "Start en ny samtale",
     )
 
     private fun de(): Map<String, String> = mapOf(
@@ -596,6 +606,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Einstellungen öffnen",
         "push.channel" to "Antworten",
         "a11y.unread" to "{count} ungelesen",
+        "home.new_reply" to "Neue Antwort von {team}",
+        "home.new_conversation" to "Neue Unterhaltung beginnen",
     )
 
     private fun el(): Map<String, String> = mapOf(
@@ -688,6 +700,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Άνοιγμα Ρυθμίσεων",
         "push.channel" to "Απαντήσεις",
         "a11y.unread" to "Μη αναγνωσμένα: {count}",
+        "home.new_reply" to "Νέα απάντηση από {team}",
+        "home.new_conversation" to "Ξεκινήστε νέα συνομιλία",
     )
 
     private fun es(): Map<String, String> = mapOf(
@@ -780,6 +794,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Abrir Ajustes",
         "push.channel" to "Respuestas",
         "a11y.unread" to "{count} sin leer",
+        "home.new_reply" to "Nueva respuesta de {team}",
+        "home.new_conversation" to "Empezar una conversación nueva",
     )
 
     private fun fi(): Map<String, String> = mapOf(
@@ -872,6 +888,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Avaa Asetukset",
         "push.channel" to "Vastaukset",
         "a11y.unread" to "Lukemattomia: {count}",
+        "home.new_reply" to "Uusi vastaus: {team}",
+        "home.new_conversation" to "Aloita uusi keskustelu",
     )
 
     private fun fr(): Map<String, String> = mapOf(
@@ -964,6 +982,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Ouvrir Réglages",
         "push.channel" to "Réponses",
         "a11y.unread" to "{count} non lus",
+        "home.new_reply" to "Nouvelle réponse de {team}",
+        "home.new_conversation" to "Démarrer une nouvelle conversation",
     )
 
     private fun he(): Map<String, String> = mapOf(
@@ -1056,6 +1076,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "פתיחת ההגדרות",
         "push.channel" to "תשובות",
         "a11y.unread" to "לא נקראו: {count}",
+        "home.new_reply" to "תשובה חדשה מ-{team}",
+        "home.new_conversation" to "התחלת שיחה חדשה",
     )
 
     private fun hi(): Map<String, String> = mapOf(
@@ -1148,6 +1170,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "सेटिंग्स खोलें",
         "push.channel" to "जवाब",
         "a11y.unread" to "अपठित: {count}",
+        "home.new_reply" to "{team} का नया जवाब",
+        "home.new_conversation" to "नई बातचीत शुरू करें",
     )
 
     private fun hr(): Map<String, String> = mapOf(
@@ -1240,6 +1264,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Otvori Postavke",
         "push.channel" to "Odgovori",
         "a11y.unread" to "Nepročitano: {count}",
+        "home.new_reply" to "Novi odgovor od {team}",
+        "home.new_conversation" to "Započni novi razgovor",
     )
 
     private fun hu(): Map<String, String> = mapOf(
@@ -1332,6 +1358,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Beállítások megnyitása",
         "push.channel" to "Válaszok",
         "a11y.unread" to "Olvasatlan: {count}",
+        "home.new_reply" to "Új válasz: {team}",
+        "home.new_conversation" to "Új beszélgetés indítása",
     )
 
     private fun id(): Map<String, String> = mapOf(
@@ -1424,6 +1452,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Buka Pengaturan",
         "push.channel" to "Balasan",
         "a11y.unread" to "Belum dibaca: {count}",
+        "home.new_reply" to "Balasan baru dari {team}",
+        "home.new_conversation" to "Mulai percakapan baru",
     )
 
     private fun it(): Map<String, String> = mapOf(
@@ -1516,6 +1546,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Apri Impostazioni",
         "push.channel" to "Risposte",
         "a11y.unread" to "{count} da leggere",
+        "home.new_reply" to "Nuova risposta da {team}",
+        "home.new_conversation" to "Inizia una nuova conversazione",
     )
 
     private fun ja(): Map<String, String> = mapOf(
@@ -1608,6 +1640,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "設定を開く",
         "push.channel" to "返信",
         "a11y.unread" to "未読 {count} 件",
+        "home.new_reply" to "{team}から新しい返信",
+        "home.new_conversation" to "新しい会話を始める",
     )
 
     private fun ko(): Map<String, String> = mapOf(
@@ -1700,6 +1734,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "설정 열기",
         "push.channel" to "답장",
         "a11y.unread" to "읽지 않음 {count}개",
+        "home.new_reply" to "{team}의 새 답장",
+        "home.new_conversation" to "새 대화 시작",
     )
 
     private fun ms(): Map<String, String> = mapOf(
@@ -1792,6 +1828,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Buka Tetapan",
         "push.channel" to "Balasan",
         "a11y.unread" to "Belum dibaca: {count}",
+        "home.new_reply" to "Balasan baharu daripada {team}",
+        "home.new_conversation" to "Mulakan perbualan baharu",
     )
 
     private fun nb(): Map<String, String> = mapOf(
@@ -1884,6 +1922,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Åpne Innstillinger",
         "push.channel" to "Svar",
         "a11y.unread" to "Uleste: {count}",
+        "home.new_reply" to "Nytt svar fra {team}",
+        "home.new_conversation" to "Start en ny samtale",
     )
 
     private fun nl(): Map<String, String> = mapOf(
@@ -1976,6 +2016,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Instellingen openen",
         "push.channel" to "Antwoorden",
         "a11y.unread" to "{count} ongelezen",
+        "home.new_reply" to "Nieuw antwoord van {team}",
+        "home.new_conversation" to "Nieuw gesprek beginnen",
     )
 
     private fun pl(): Map<String, String> = mapOf(
@@ -2068,6 +2110,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Otwórz Ustawienia",
         "push.channel" to "Odpowiedzi",
         "a11y.unread" to "Nieprzeczytane: {count}",
+        "home.new_reply" to "Nowa odpowiedź od {team}",
+        "home.new_conversation" to "Rozpocznij nową rozmowę",
     )
 
     private fun pt_BR(): Map<String, String> = mapOf(
@@ -2160,6 +2204,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Abrir Ajustes",
         "push.channel" to "Respostas",
         "a11y.unread" to "{count} não lidas",
+        "home.new_reply" to "Nova resposta de {team}",
+        "home.new_conversation" to "Começar uma nova conversa",
     )
 
     private fun pt_PT(): Map<String, String> = mapOf(
@@ -2252,6 +2298,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Abrir Definições",
         "push.channel" to "Respostas",
         "a11y.unread" to "Por ler: {count}",
+        "home.new_reply" to "Nova resposta de {team}",
+        "home.new_conversation" to "Iniciar uma nova conversa",
     )
 
     private fun ro(): Map<String, String> = mapOf(
@@ -2344,6 +2392,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Deschide Setările",
         "push.channel" to "Răspunsuri",
         "a11y.unread" to "Necitite: {count}",
+        "home.new_reply" to "Răspuns nou de la {team}",
+        "home.new_conversation" to "Începe o conversație nouă",
     )
 
     private fun ru(): Map<String, String> = mapOf(
@@ -2436,6 +2486,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Открыть Настройки",
         "push.channel" to "Ответы",
         "a11y.unread" to "Непрочитанные: {count}",
+        "home.new_reply" to "Новый ответ от {team}",
+        "home.new_conversation" to "Начать новый разговор",
     )
 
     private fun sk(): Map<String, String> = mapOf(
@@ -2528,6 +2580,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Otvoriť Nastavenia",
         "push.channel" to "Odpovede",
         "a11y.unread" to "Neprečítané: {count}",
+        "home.new_reply" to "Nová odpoveď od {team}",
+        "home.new_conversation" to "Začať nový rozhovor",
     )
 
     private fun sv(): Map<String, String> = mapOf(
@@ -2620,6 +2674,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Öppna Inställningar",
         "push.channel" to "Svar",
         "a11y.unread" to "Olästa: {count}",
+        "home.new_reply" to "Nytt svar från {team}",
+        "home.new_conversation" to "Starta en ny konversation",
     )
 
     private fun th(): Map<String, String> = mapOf(
@@ -2712,6 +2768,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "เปิดการตั้งค่า",
         "push.channel" to "คำตอบ",
         "a11y.unread" to "ยังไม่ได้อ่าน: {count}",
+        "home.new_reply" to "คำตอบใหม่จาก {team}",
+        "home.new_conversation" to "เริ่มการสนทนาใหม่",
     )
 
     private fun tr(): Map<String, String> = mapOf(
@@ -2804,6 +2862,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Ayarlar'ı aç",
         "push.channel" to "Yanıtlar",
         "a11y.unread" to "{count} okunmamış",
+        "home.new_reply" to "{team} ekibinden yeni yanıt",
+        "home.new_conversation" to "Yeni bir sohbet başlat",
     )
 
     private fun uk(): Map<String, String> = mapOf(
@@ -2896,6 +2956,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Відкрити Параметри",
         "push.channel" to "Відповіді",
         "a11y.unread" to "Непрочитані: {count}",
+        "home.new_reply" to "Нова відповідь від {team}",
+        "home.new_conversation" to "Почати нову розмову",
     )
 
     private fun vi(): Map<String, String> = mapOf(
@@ -2988,6 +3050,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "Mở Cài đặt",
         "push.channel" to "Phản hồi",
         "a11y.unread" to "Chưa đọc: {count}",
+        "home.new_reply" to "Trả lời mới từ {team}",
+        "home.new_conversation" to "Bắt đầu cuộc trò chuyện mới",
     )
 
     private fun zh_Hans(): Map<String, String> = mapOf(
@@ -3080,6 +3144,8 @@ internal object DevReplyStrings {
         "push.open_settings" to "打开设置",
         "push.channel" to "回复",
         "a11y.unread" to "{count} 条未读",
+        "home.new_reply" to "{team} 的新回复",
+        "home.new_conversation" to "开始新的对话",
     )
 
     private fun zh_Hant(): Map<String, String> = mapOf(
@@ -3172,5 +3238,7 @@ internal object DevReplyStrings {
         "push.open_settings" to "開啟設定",
         "push.channel" to "回覆",
         "a11y.unread" to "未讀：{count}",
+        "home.new_reply" to "{team} 的新回覆",
+        "home.new_conversation" to "開始新的對話",
     )
 }

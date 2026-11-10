@@ -43,6 +43,8 @@ import com.devreply.sdk.Messenger
 import com.devreply.sdk.MessengerConfig
 import com.devreply.sdk.L10n
 import com.devreply.sdk.greetingText
+import com.devreply.sdk.newestUnreadReply
+import com.devreply.sdk.openIn
 import com.devreply.sdk.introText
 import com.devreply.sdk.replyTimeText
 import com.devreply.sdk.t
@@ -79,7 +81,11 @@ internal fun HomeScreen(open: (Route) -> Unit, close: () -> Unit) {
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            StartSection(config, open)
+            // An answer waiting comes first (0.5.1): above the start tiles, so nobody writes again instead.
+            conversations.newestUnreadReply()?.let { c ->
+                NewReplyCard(c, config) { open(Route.Chat(c.id, c.category)) }
+            }
+            StartSection(config, conversations, open)
             if (conversations.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     BasicText(t("your_conversations"), style = display(22.sp))
@@ -168,19 +174,55 @@ private fun TeamFaces(team: List<com.devreply.sdk.Persona>) {
 }
 
 @Composable
-private fun StartSection(config: MessengerConfig, open: (Route) -> Unit) {
+private fun StartSection(config: MessengerConfig, conversations: List<Conversation>, open: (Route) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BasicText(t("start_title"), style = display(22.sp))
         config.startButtons.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 pair.forEach { button ->
                     BrutalButton(
-                        { open(Route.Chat(null, button.category)) },
+                        {
+                            // A topic with an open conversation continues it (0.5.1); a new one is one tap from there.
+                            val ongoing = conversations.openIn(button.category)
+                            open(
+                                if (ongoing == null) Route.Chat(null, button.category)
+                                else Route.Chat(ongoing.id, ongoing.category ?: button.category, offersNew = true),
+                            )
+                        },
                         Modifier.weight(1f).testTag("devreply.start.${button.category.name.lowercase()}"),
                     ) { StartTile(button, config.title(button)) }
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+    }
+}
+
+/** "New reply from KneeFit" and the reply's first words; a tap opens that conversation. */
+@Composable
+private fun NewReplyCard(c: Conversation, config: MessengerConfig, open: () -> Unit) {
+    val theme = LocalTheme.current
+    val title = t("home.new_reply", "team" to config.teamName.ifEmpty { t("team") })
+    BrutalButton(open, Modifier.fillMaxWidth().testTag("devreply.newreply"), fill = theme.cardFill, label = title) {
+        Row(
+            Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TeamAvatar(config.teamName, 40.dp, imageUrl = config.appIconUrl)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BasicText(title, style = text(16.sp, FontWeight.Bold, theme.onCardColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicText(
+                    c.lastText ?: t("photo"),
+                    style = text(15.sp, FontWeight.Medium, theme.onCardColor),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Image(
+                painterResource(com.devreply.sdk.R.drawable.devreply_ic_arrow_right), null, Modifier.size(22.dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(theme.onCardColor),
+            )
         }
     }
 }

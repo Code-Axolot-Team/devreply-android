@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Version of this SDK. Sent on install registration and compared with each block's `min_sdk`. */
-public const val DEVREPLY_SDK_VERSION: String = "0.5.0"
+public const val DEVREPLY_SDK_VERSION: String = "0.5.1"
 
 /** What a conversation is about. Set by the start button the user picked (spec 05). */
 public enum class DevReplyCategory(internal val wire: String) {
@@ -142,6 +142,21 @@ internal data class Conversation(
         )
     }
 }
+
+/**
+ * Home's top card (0.5.1): the newest conversation whose last message is a team reply the user hasn't
+ * read, so an answer is never missed below the start tiles.
+ */
+internal fun List<Conversation>.newestUnreadReply(): Conversation? =
+    filter { it.unread > 0 && it.lastAuthor != "user" && it.lastAuthor != "system" }
+        .maxByOrNull { it.lastMessageAt }
+
+/**
+ * What a start tile opens (0.5.1): the user's newest open conversation in that topic, if any (one without
+ * a topic counts as Other); null starts a new one.
+ */
+internal fun List<Conversation>.openIn(category: DevReplyCategory): Conversation? =
+    filter { !it.isClosed && (it.category ?: DevReplyCategory.Other) == category }.maxByOrNull { it.lastMessageAt }
 
 internal data class Message(
     val id: UUID,
