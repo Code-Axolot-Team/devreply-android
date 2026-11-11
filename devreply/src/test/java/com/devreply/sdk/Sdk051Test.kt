@@ -132,7 +132,6 @@ class HomeChoicesTest {
         L10n.override = "en"
         try {
             assertEquals("New reply from KneeFit", t("home.new_reply", "team" to "KneeFit"))
-            assertEquals("Start a new conversation", t("home.new_conversation"))
             L10n.override = "de"
             assertTrue(t("home.new_reply", "team" to "KneeFit").contains("KneeFit"))
             assertTrue(t("home.new_reply", "team" to "KneeFit") != "New reply from KneeFit")

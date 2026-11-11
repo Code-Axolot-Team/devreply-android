@@ -116,6 +116,8 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
         val id: UUID = UUID.randomUUID(),
         /** A tap on a buttons question's option: sent with the message (0.5.0). */
         val answer: Answer? = null,
+        /** A form's answers (0.6.0): sent as `form_answer`, [text] is only what shows meanwhile. */
+        val formAnswer: com.devreply.sdk.FormAnswer? = null,
     )
 
     var conversationId by mutableStateOf(existingId)
@@ -174,6 +176,45 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
         Messenger.scope.launch { sending.withLock { deliver(item) } }
     }
 
+    /**
+     * What the user has picked or typed in each form so far (0.6.0), by the form's message id: kept here, so it
+     * survives the card scrolling out of the list.
+     */
+    val formDrafts = androidx.compose.runtime.mutableStateMapOf<UUID, Map<String, Any>>()
+
+    /** The answers to the form [form], or null while it's open. */
+    fun formAnswer(form: UUID): com.devreply.sdk.FormAnswer? =
+        com.devreply.sdk.Forms.answered(form, messages, pending.mapNotNull { it.formAnswer })
+
+    /**
+     * Send answers: once per form, with every answer in one request. Returns the required questions still
+     * missing (nothing is sent then), empty when it went out.
+     */
+    fun submit(message: Message, form: Block.Form): List<String> {
+        if (formAnswer(message.id) != null) return emptyList()
+        val draft = formDrafts[message.id].orEmpty()
+        val missing = com.devreply.sdk.Forms.missing(form, draft)
+        if (missing.isNotEmpty()) return missing
+        formErrors.remove(message.id)
+        val answers = com.devreply.sdk.Forms.clean(form, draft)
+        val item = Pending(com.devreply.sdk.Forms.summary(form, answers), emptyList(), formAnswer = com.devreply.sdk.FormAnswer(message.id, answers))
+        pending = pending + item
+        sentCount++
+        Messenger.scope.launch { sending.withLock { deliver(item) } }
+        return emptyList()
+    }
+
+    /** A link button: reported for the team's stats (fire-and-forget, never in the way of opening it). */
+    fun linkTapped(message: Message, link: Block.Links.Link) {
+        val id = conversationId ?: return
+        Messenger.scope.launch { runCatching { Messenger.authorized { api, t -> api.linkTapped(t, id, message.id, link.id) } } }
+    }
+
+    /** "Open gift": reported (fire-and-forget). */
+    fun giftOpened(gift: Block.Gift) {
+        Messenger.scope.launch { runCatching { Messenger.authorized { api, t -> api.giftOpened(t, gift.giftId) } } }
+    }
+
     fun retry(item: Pending) {
         if (pending.none { it.id == item.id }) return
         val fresh = item.copy(failure = null)
@@ -191,7 +232,12 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
             }
             val id = conversationId
             if (id != null) {
-                val message = Messenger.authorized { api, t -> api.sendMessage(t, id, item.text, ids, item.answer) }
+                val form = item.formAnswer
+                val message = if (form != null) {
+                    Messenger.authorized { api, t -> api.sendFormAnswer(t, id, form) }
+                } else {
+                    Messenger.authorized { api, t -> api.sendMessage(t, id, item.text, ids, item.answer) }
+                }
                 // The live channel may have brought it already: never twice.
                 messages = com.devreply.sdk.mergeMessage(messages, message)
                 com.devreply.sdk.LiveUpdates.saw(message.id)
@@ -211,10 +257,20 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
             }
             pending = pending.filter { it.id != item.id }
         } catch (e: DevReplyError.Server) {
-            if (e.status == 409 && item.answer != null) {
+            if (e.status == 409 && (item.answer != null || item.formAnswer != null)) {
                 // Answered already (on another device, or a tap that got through before): show what the server has.
                 pending = pending.filter { it.id != item.id }
                 load()
+            } else {
+                failed(item, e)
+            }
+        } catch (e: DevReplyError.Invalid) {
+            val form = item.formAnswer
+            if (form != null) {
+                // Refused (400: a required answer or an id the server doesn't know): the form opens again with
+                // what the user picked, and says why.
+                pending = pending.filter { it.id != item.id }
+                formErrors[form.messageId] = (e.message ?: "invalid").replaceFirstChar { it.uppercase() } + "."
             } else {
                 failed(item, e)
             }
@@ -222,6 +278,9 @@ internal class ConversationModel(existingId: UUID?, category: DevReplyCategory?)
             failed(item, e)
         }
     }
+
+    /** Why the server refused a form's answers, by the form's message id (cleared on the next Send). */
+    val formErrors = androidx.compose.runtime.mutableStateMapOf<UUID, String>()
 
     /** Shows why [item] didn't go; a tap on it tries again. */
     private fun failed(item: Pending, e: Exception) {

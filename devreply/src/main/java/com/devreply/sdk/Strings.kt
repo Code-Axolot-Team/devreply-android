@@ -137,7 +137,17 @@ internal object DevReplyStrings {
         "push.channel" to "Replies",
         "a11y.unread" to "{count} unread",
         "home.new_reply" to "New reply from {team}",
-        "home.new_conversation" to "Start a new conversation",
+        "offer.label" to "Offer",
+        "offer.opt_out" to "Don't send me offers",
+        "offer.opted_out" to "You won't get offers.",
+        "offer.undo" to "Undo",
+        "gift.label" to "A gift for you",
+        "gift.open" to "Open gift",
+        "gift.expired" to "This gift has expired",
+        "form.send" to "Send answers",
+        "form.required" to "Please answer this one.",
+        "form.pick_any" to "Pick any",
+        "form.your_answer" to "Your answer",
     )
 
     private fun ar(): Map<String, String> = mapOf(
@@ -231,7 +241,17 @@ internal object DevReplyStrings {
         "push.channel" to "الردود",
         "a11y.unread" to "غير مقروءة: {count}",
         "home.new_reply" to "رد جديد من {team}",
-        "home.new_conversation" to "ابدأ محادثة جديدة",
+        "offer.label" to "عرض",
+        "offer.opt_out" to "لا ترسلوا لي عروضًا",
+        "offer.opted_out" to "لن تصلك عروض.",
+        "offer.undo" to "تراجع",
+        "gift.label" to "هدية لك",
+        "gift.open" to "افتح الهدية",
+        "gift.expired" to "انتهت صلاحية هذه الهدية",
+        "form.send" to "إرسال الإجابات",
+        "form.required" to "يرجى الإجابة على هذا السؤال.",
+        "form.pick_any" to "اختر ما يناسبك",
+        "form.your_answer" to "إجابتك",
     )
 
     private fun ca(): Map<String, String> = mapOf(
@@ -325,7 +345,17 @@ internal object DevReplyStrings {
         "push.channel" to "Respostes",
         "a11y.unread" to "Sense llegir: {count}",
         "home.new_reply" to "Nova resposta de {team}",
-        "home.new_conversation" to "Comença una conversa nova",
+        "offer.label" to "Oferta",
+        "offer.opt_out" to "No m'envieu ofertes",
+        "offer.opted_out" to "No rebràs ofertes.",
+        "offer.undo" to "Desfés",
+        "gift.label" to "Un regal per a tu",
+        "gift.open" to "Obre el regal",
+        "gift.expired" to "Aquest regal ha caducat",
+        "form.send" to "Envia les respostes",
+        "form.required" to "Respon aquesta, si us plau.",
+        "form.pick_any" to "Tria'n les que vulguis",
+        "form.your_answer" to "La teva resposta",
     )
 
     private fun cs(): Map<String, String> = mapOf(
@@ -419,7 +449,17 @@ internal object DevReplyStrings {
         "push.channel" to "Odpovědi",
         "a11y.unread" to "Nepřečtené: {count}",
         "home.new_reply" to "Nová odpověď od {team}",
-        "home.new_conversation" to "Začít novou konverzaci",
+        "offer.label" to "Nabídka",
+        "offer.opt_out" to "Neposílejte mi nabídky",
+        "offer.opted_out" to "Nabídky už nebudete dostávat.",
+        "offer.undo" to "Zpět",
+        "gift.label" to "Dárek pro vás",
+        "gift.open" to "Otevřít dárek",
+        "gift.expired" to "Platnost tohoto dárku vypršela",
+        "form.send" to "Odeslat odpovědi",
+        "form.required" to "Odpovězte prosím na tuto otázku.",
+        "form.pick_any" to "Vyberte libovolné",
+        "form.your_answer" to "Vaše odpověď",
     )
 
     private fun da(): Map<String, String> = mapOf(
@@ -513,7 +553,17 @@ internal object DevReplyStrings {
         "push.channel" to "Svar",
         "a11y.unread" to "Ulæste: {count}",
         "home.new_reply" to "Nyt svar fra {team}",
-        "home.new_conversation" to "Start en ny samtale",
+        "offer.label" to "Tilbud",
+        "offer.opt_out" to "Send mig ikke tilbud",
+        "offer.opted_out" to "Du får ikke tilbud.",
+        "offer.undo" to "Fortryd",
+        "gift.label" to "En gave til dig",
+        "gift.open" to "Åbn gaven",
+        "gift.expired" to "Denne gave er udløbet",
+        "form.send" to "Send svar",
+        "form.required" to "Besvar venligst dette spørgsmål.",
+        "form.pick_any" to "Vælg så mange du vil",
+        "form.your_answer" to "Dit svar",
     )
 
     private fun de(): Map<String, String> = mapOf(
@@ -607,7 +657,17 @@ internal object DevReplyStrings {
         "push.channel" to "Antworten",
         "a11y.unread" to "{count} ungelesen",
         "home.new_reply" to "Neue Antwort von {team}",
-        "home.new_conversation" to "Neue Unterhaltung beginnen",
+        "offer.label" to "Angebot",
+        "offer.opt_out" to "Keine Angebote mehr senden",
+        "offer.opted_out" to "Du erhältst keine Angebote mehr.",
+        "offer.undo" to "Rückgängig",
+        "gift.label" to "Ein Geschenk für dich",
+        "gift.open" to "Geschenk öffnen",
+        "gift.expired" to "Dieses Geschenk ist abgelaufen",
+        "form.send" to "Antworten senden",
+        "form.required" to "Bitte beantworte diese Frage.",
+        "form.pick_any" to "Beliebig viele wählen",
+        "form.your_answer" to "Deine Antwort",
     )
 
     private fun el(): Map<String, String> = mapOf(
@@ -701,7 +761,17 @@ internal object DevReplyStrings {
         "push.channel" to "Απαντήσεις",
         "a11y.unread" to "Μη αναγνωσμένα: {count}",
         "home.new_reply" to "Νέα απάντηση από {team}",
-        "home.new_conversation" to "Ξεκινήστε νέα συνομιλία",
+        "offer.label" to "Προσφορά",
+        "offer.opt_out" to "Μη μου στέλνετε προσφορές",
+        "offer.opted_out" to "Δεν θα λαμβάνετε προσφορές.",
+        "offer.undo" to "Αναίρεση",
+        "gift.label" to "Ένα δώρο για εσάς",
+        "gift.open" to "Άνοιγμα δώρου",
+        "gift.expired" to "Αυτό το δώρο έχει λήξει",
+        "form.send" to "Αποστολή απαντήσεων",
+        "form.required" to "Απαντήστε σε αυτή την ερώτηση.",
+        "form.pick_any" to "Επιλέξτε όσα θέλετε",
+        "form.your_answer" to "Η απάντησή σας",
     )
 
     private fun es(): Map<String, String> = mapOf(
@@ -795,7 +865,17 @@ internal object DevReplyStrings {
         "push.channel" to "Respuestas",
         "a11y.unread" to "{count} sin leer",
         "home.new_reply" to "Nueva respuesta de {team}",
-        "home.new_conversation" to "Empezar una conversación nueva",
+        "offer.label" to "Oferta",
+        "offer.opt_out" to "No me envíes ofertas",
+        "offer.opted_out" to "No recibirás ofertas.",
+        "offer.undo" to "Deshacer",
+        "gift.label" to "Un regalo para ti",
+        "gift.open" to "Abrir regalo",
+        "gift.expired" to "Este regalo ha caducado",
+        "form.send" to "Enviar respuestas",
+        "form.required" to "Responde a esta, por favor.",
+        "form.pick_any" to "Elige las que quieras",
+        "form.your_answer" to "Tu respuesta",
     )
 
     private fun fi(): Map<String, String> = mapOf(
@@ -889,7 +969,17 @@ internal object DevReplyStrings {
         "push.channel" to "Vastaukset",
         "a11y.unread" to "Lukemattomia: {count}",
         "home.new_reply" to "Uusi vastaus: {team}",
-        "home.new_conversation" to "Aloita uusi keskustelu",
+        "offer.label" to "Tarjous",
+        "offer.opt_out" to "Älä lähetä minulle tarjouksia",
+        "offer.opted_out" to "Et saa tarjouksia.",
+        "offer.undo" to "Kumoa",
+        "gift.label" to "Lahja sinulle",
+        "gift.open" to "Avaa lahja",
+        "gift.expired" to "Tämä lahja on vanhentunut",
+        "form.send" to "Lähetä vastaukset",
+        "form.required" to "Vastaa tähän kysymykseen.",
+        "form.pick_any" to "Valitse haluamasi",
+        "form.your_answer" to "Vastauksesi",
     )
 
     private fun fr(): Map<String, String> = mapOf(
@@ -983,7 +1073,17 @@ internal object DevReplyStrings {
         "push.channel" to "Réponses",
         "a11y.unread" to "{count} non lus",
         "home.new_reply" to "Nouvelle réponse de {team}",
-        "home.new_conversation" to "Démarrer une nouvelle conversation",
+        "offer.label" to "Offre",
+        "offer.opt_out" to "Ne plus m'envoyer d'offres",
+        "offer.opted_out" to "Vous ne recevrez plus d'offres.",
+        "offer.undo" to "Annuler",
+        "gift.label" to "Un cadeau pour vous",
+        "gift.open" to "Ouvrir le cadeau",
+        "gift.expired" to "Ce cadeau a expiré",
+        "form.send" to "Envoyer les réponses",
+        "form.required" to "Veuillez répondre à cette question.",
+        "form.pick_any" to "Choisissez librement",
+        "form.your_answer" to "Votre réponse",
     )
 
     private fun he(): Map<String, String> = mapOf(
@@ -1077,7 +1177,17 @@ internal object DevReplyStrings {
         "push.channel" to "תשובות",
         "a11y.unread" to "לא נקראו: {count}",
         "home.new_reply" to "תשובה חדשה מ-{team}",
-        "home.new_conversation" to "התחלת שיחה חדשה",
+        "offer.label" to "הצעה",
+        "offer.opt_out" to "אל תשלחו לי הצעות",
+        "offer.opted_out" to "לא תקבלו הצעות.",
+        "offer.undo" to "ביטול",
+        "gift.label" to "מתנה בשבילך",
+        "gift.open" to "פתיחת המתנה",
+        "gift.expired" to "תוקף המתנה הזו פג",
+        "form.send" to "שליחת התשובות",
+        "form.required" to "נא לענות על השאלה הזו.",
+        "form.pick_any" to "אפשר לבחור כמה",
+        "form.your_answer" to "התשובה שלך",
     )
 
     private fun hi(): Map<String, String> = mapOf(
@@ -1171,7 +1281,17 @@ internal object DevReplyStrings {
         "push.channel" to "जवाब",
         "a11y.unread" to "अपठित: {count}",
         "home.new_reply" to "{team} का नया जवाब",
-        "home.new_conversation" to "नई बातचीत शुरू करें",
+        "offer.label" to "ऑफ़र",
+        "offer.opt_out" to "मुझे ऑफ़र न भेजें",
+        "offer.opted_out" to "आपको ऑफ़र नहीं मिलेंगे।",
+        "offer.undo" to "पूर्ववत करें",
+        "gift.label" to "आपके लिए एक तोहफ़ा",
+        "gift.open" to "तोहफ़ा खोलें",
+        "gift.expired" to "यह तोहफ़ा समाप्त हो चुका है",
+        "form.send" to "जवाब भेजें",
+        "form.required" to "कृपया इसका जवाब दें।",
+        "form.pick_any" to "कोई भी चुनें",
+        "form.your_answer" to "आपका जवाब",
     )
 
     private fun hr(): Map<String, String> = mapOf(
@@ -1265,7 +1385,17 @@ internal object DevReplyStrings {
         "push.channel" to "Odgovori",
         "a11y.unread" to "Nepročitano: {count}",
         "home.new_reply" to "Novi odgovor od {team}",
-        "home.new_conversation" to "Započni novi razgovor",
+        "offer.label" to "Ponuda",
+        "offer.opt_out" to "Ne šaljite mi ponude",
+        "offer.opted_out" to "Nećete primati ponude.",
+        "offer.undo" to "Poništi",
+        "gift.label" to "Poklon za vas",
+        "gift.open" to "Otvori poklon",
+        "gift.expired" to "Ovaj poklon je istekao",
+        "form.send" to "Pošalji odgovore",
+        "form.required" to "Molimo odgovorite na ovo pitanje.",
+        "form.pick_any" to "Odaberite po želji",
+        "form.your_answer" to "Vaš odgovor",
     )
 
     private fun hu(): Map<String, String> = mapOf(
@@ -1359,7 +1489,17 @@ internal object DevReplyStrings {
         "push.channel" to "Válaszok",
         "a11y.unread" to "Olvasatlan: {count}",
         "home.new_reply" to "Új válasz: {team}",
-        "home.new_conversation" to "Új beszélgetés indítása",
+        "offer.label" to "Ajánlat",
+        "offer.opt_out" to "Ne küldjetek ajánlatokat",
+        "offer.opted_out" to "Nem kapsz több ajánlatot.",
+        "offer.undo" to "Visszavonás",
+        "gift.label" to "Ajándék neked",
+        "gift.open" to "Ajándék megnyitása",
+        "gift.expired" to "Ez az ajándék lejárt",
+        "form.send" to "Válaszok küldése",
+        "form.required" to "Kérjük, válaszolj erre.",
+        "form.pick_any" to "Válassz tetszés szerint",
+        "form.your_answer" to "A válaszod",
     )
 
     private fun id(): Map<String, String> = mapOf(
@@ -1453,7 +1593,17 @@ internal object DevReplyStrings {
         "push.channel" to "Balasan",
         "a11y.unread" to "Belum dibaca: {count}",
         "home.new_reply" to "Balasan baru dari {team}",
-        "home.new_conversation" to "Mulai percakapan baru",
+        "offer.label" to "Penawaran",
+        "offer.opt_out" to "Jangan kirimi saya penawaran",
+        "offer.opted_out" to "Anda tidak akan menerima penawaran.",
+        "offer.undo" to "Urungkan",
+        "gift.label" to "Hadiah untuk Anda",
+        "gift.open" to "Buka hadiah",
+        "gift.expired" to "Hadiah ini sudah kedaluwarsa",
+        "form.send" to "Kirim jawaban",
+        "form.required" to "Harap jawab pertanyaan ini.",
+        "form.pick_any" to "Pilih sesukanya",
+        "form.your_answer" to "Jawaban Anda",
     )
 
     private fun it(): Map<String, String> = mapOf(
@@ -1547,7 +1697,17 @@ internal object DevReplyStrings {
         "push.channel" to "Risposte",
         "a11y.unread" to "{count} da leggere",
         "home.new_reply" to "Nuova risposta da {team}",
-        "home.new_conversation" to "Inizia una nuova conversazione",
+        "offer.label" to "Offerta",
+        "offer.opt_out" to "Non inviarmi offerte",
+        "offer.opted_out" to "Non riceverai offerte.",
+        "offer.undo" to "Annulla",
+        "gift.label" to "Un regalo per te",
+        "gift.open" to "Apri il regalo",
+        "gift.expired" to "Questo regalo è scaduto",
+        "form.send" to "Invia le risposte",
+        "form.required" to "Rispondi a questa domanda.",
+        "form.pick_any" to "Scegli quelle che vuoi",
+        "form.your_answer" to "La tua risposta",
     )
 
     private fun ja(): Map<String, String> = mapOf(
@@ -1641,7 +1801,17 @@ internal object DevReplyStrings {
         "push.channel" to "返信",
         "a11y.unread" to "未読 {count} 件",
         "home.new_reply" to "{team}から新しい返信",
-        "home.new_conversation" to "新しい会話を始める",
+        "offer.label" to "特典",
+        "offer.opt_out" to "特典を送らないでください",
+        "offer.opted_out" to "特典は届かなくなります。",
+        "offer.undo" to "元に戻す",
+        "gift.label" to "あなたへのギフト",
+        "gift.open" to "ギフトを開く",
+        "gift.expired" to "このギフトは期限切れです",
+        "form.send" to "回答を送信",
+        "form.required" to "この質問に答えてください。",
+        "form.pick_any" to "いくつでも選べます",
+        "form.your_answer" to "あなたの回答",
     )
 
     private fun ko(): Map<String, String> = mapOf(
@@ -1735,7 +1905,17 @@ internal object DevReplyStrings {
         "push.channel" to "답장",
         "a11y.unread" to "읽지 않음 {count}개",
         "home.new_reply" to "{team}의 새 답장",
-        "home.new_conversation" to "새 대화 시작",
+        "offer.label" to "혜택",
+        "offer.opt_out" to "혜택을 보내지 마세요",
+        "offer.opted_out" to "더 이상 혜택을 받지 않습니다.",
+        "offer.undo" to "실행 취소",
+        "gift.label" to "당신을 위한 선물",
+        "gift.open" to "선물 열기",
+        "gift.expired" to "이 선물은 만료되었습니다",
+        "form.send" to "답변 보내기",
+        "form.required" to "이 질문에 답해 주세요.",
+        "form.pick_any" to "원하는 만큼 선택",
+        "form.your_answer" to "내 답변",
     )
 
     private fun ms(): Map<String, String> = mapOf(
@@ -1829,7 +2009,17 @@ internal object DevReplyStrings {
         "push.channel" to "Balasan",
         "a11y.unread" to "Belum dibaca: {count}",
         "home.new_reply" to "Balasan baharu daripada {team}",
-        "home.new_conversation" to "Mulakan perbualan baharu",
+        "offer.label" to "Tawaran",
+        "offer.opt_out" to "Jangan hantar tawaran kepada saya",
+        "offer.opted_out" to "Anda tidak akan menerima tawaran.",
+        "offer.undo" to "Buat asal",
+        "gift.label" to "Hadiah untuk anda",
+        "gift.open" to "Buka hadiah",
+        "gift.expired" to "Hadiah ini telah tamat tempoh",
+        "form.send" to "Hantar jawapan",
+        "form.required" to "Sila jawab soalan ini.",
+        "form.pick_any" to "Pilih mana-mana",
+        "form.your_answer" to "Jawapan anda",
     )
 
     private fun nb(): Map<String, String> = mapOf(
@@ -1923,7 +2113,17 @@ internal object DevReplyStrings {
         "push.channel" to "Svar",
         "a11y.unread" to "Uleste: {count}",
         "home.new_reply" to "Nytt svar fra {team}",
-        "home.new_conversation" to "Start en ny samtale",
+        "offer.label" to "Tilbud",
+        "offer.opt_out" to "Ikke send meg tilbud",
+        "offer.opted_out" to "Du får ikke tilbud.",
+        "offer.undo" to "Angre",
+        "gift.label" to "En gave til deg",
+        "gift.open" to "Åpne gaven",
+        "gift.expired" to "Denne gaven har utløpt",
+        "form.send" to "Send svar",
+        "form.required" to "Svar på dette spørsmålet.",
+        "form.pick_any" to "Velg så mange du vil",
+        "form.your_answer" to "Svaret ditt",
     )
 
     private fun nl(): Map<String, String> = mapOf(
@@ -2017,7 +2217,17 @@ internal object DevReplyStrings {
         "push.channel" to "Antwoorden",
         "a11y.unread" to "{count} ongelezen",
         "home.new_reply" to "Nieuw antwoord van {team}",
-        "home.new_conversation" to "Nieuw gesprek beginnen",
+        "offer.label" to "Aanbieding",
+        "offer.opt_out" to "Stuur me geen aanbiedingen",
+        "offer.opted_out" to "Je krijgt geen aanbiedingen meer.",
+        "offer.undo" to "Ongedaan maken",
+        "gift.label" to "Een cadeau voor jou",
+        "gift.open" to "Cadeau openen",
+        "gift.expired" to "Dit cadeau is verlopen",
+        "form.send" to "Antwoorden versturen",
+        "form.required" to "Beantwoord deze vraag.",
+        "form.pick_any" to "Kies zoveel je wilt",
+        "form.your_answer" to "Jouw antwoord",
     )
 
     private fun pl(): Map<String, String> = mapOf(
@@ -2111,7 +2321,17 @@ internal object DevReplyStrings {
         "push.channel" to "Odpowiedzi",
         "a11y.unread" to "Nieprzeczytane: {count}",
         "home.new_reply" to "Nowa odpowiedź od {team}",
-        "home.new_conversation" to "Rozpocznij nową rozmowę",
+        "offer.label" to "Oferta",
+        "offer.opt_out" to "Nie wysyłajcie mi ofert",
+        "offer.opted_out" to "Nie będziesz otrzymywać ofert.",
+        "offer.undo" to "Cofnij",
+        "gift.label" to "Prezent dla Ciebie",
+        "gift.open" to "Otwórz prezent",
+        "gift.expired" to "Ten prezent wygasł",
+        "form.send" to "Wyślij odpowiedzi",
+        "form.required" to "Odpowiedz na to pytanie.",
+        "form.pick_any" to "Wybierz dowolne",
+        "form.your_answer" to "Twoja odpowiedź",
     )
 
     private fun pt_BR(): Map<String, String> = mapOf(
@@ -2205,7 +2425,17 @@ internal object DevReplyStrings {
         "push.channel" to "Respostas",
         "a11y.unread" to "{count} não lidas",
         "home.new_reply" to "Nova resposta de {team}",
-        "home.new_conversation" to "Começar uma nova conversa",
+        "offer.label" to "Oferta",
+        "offer.opt_out" to "Não me envie ofertas",
+        "offer.opted_out" to "Você não vai receber ofertas.",
+        "offer.undo" to "Desfazer",
+        "gift.label" to "Um presente para você",
+        "gift.open" to "Abrir presente",
+        "gift.expired" to "Este presente expirou",
+        "form.send" to "Enviar respostas",
+        "form.required" to "Responda esta, por favor.",
+        "form.pick_any" to "Escolha quantas quiser",
+        "form.your_answer" to "Sua resposta",
     )
 
     private fun pt_PT(): Map<String, String> = mapOf(
@@ -2299,7 +2529,17 @@ internal object DevReplyStrings {
         "push.channel" to "Respostas",
         "a11y.unread" to "Por ler: {count}",
         "home.new_reply" to "Nova resposta de {team}",
-        "home.new_conversation" to "Iniciar uma nova conversa",
+        "offer.label" to "Oferta",
+        "offer.opt_out" to "Não me enviem ofertas",
+        "offer.opted_out" to "Não vai receber ofertas.",
+        "offer.undo" to "Anular",
+        "gift.label" to "Um presente para si",
+        "gift.open" to "Abrir presente",
+        "gift.expired" to "Este presente expirou",
+        "form.send" to "Enviar respostas",
+        "form.required" to "Responda a esta, por favor.",
+        "form.pick_any" to "Escolha as que quiser",
+        "form.your_answer" to "A sua resposta",
     )
 
     private fun ro(): Map<String, String> = mapOf(
@@ -2393,7 +2633,17 @@ internal object DevReplyStrings {
         "push.channel" to "Răspunsuri",
         "a11y.unread" to "Necitite: {count}",
         "home.new_reply" to "Răspuns nou de la {team}",
-        "home.new_conversation" to "Începe o conversație nouă",
+        "offer.label" to "Ofertă",
+        "offer.opt_out" to "Nu-mi mai trimiteți oferte",
+        "offer.opted_out" to "Nu vei mai primi oferte.",
+        "offer.undo" to "Anulează",
+        "gift.label" to "Un cadou pentru tine",
+        "gift.open" to "Deschide cadoul",
+        "gift.expired" to "Acest cadou a expirat",
+        "form.send" to "Trimite răspunsurile",
+        "form.required" to "Te rugăm să răspunzi la aceasta.",
+        "form.pick_any" to "Alege oricâte",
+        "form.your_answer" to "Răspunsul tău",
     )
 
     private fun ru(): Map<String, String> = mapOf(
@@ -2487,7 +2737,17 @@ internal object DevReplyStrings {
         "push.channel" to "Ответы",
         "a11y.unread" to "Непрочитанные: {count}",
         "home.new_reply" to "Новый ответ от {team}",
-        "home.new_conversation" to "Начать новый разговор",
+        "offer.label" to "Предложение",
+        "offer.opt_out" to "Не присылать мне предложения",
+        "offer.opted_out" to "Вы не будете получать предложения.",
+        "offer.undo" to "Отменить",
+        "gift.label" to "Подарок для вас",
+        "gift.open" to "Открыть подарок",
+        "gift.expired" to "Срок действия подарка истёк",
+        "form.send" to "Отправить ответы",
+        "form.required" to "Ответьте, пожалуйста, на этот вопрос.",
+        "form.pick_any" to "Можно выбрать несколько",
+        "form.your_answer" to "Ваш ответ",
     )
 
     private fun sk(): Map<String, String> = mapOf(
@@ -2581,7 +2841,17 @@ internal object DevReplyStrings {
         "push.channel" to "Odpovede",
         "a11y.unread" to "Neprečítané: {count}",
         "home.new_reply" to "Nová odpoveď od {team}",
-        "home.new_conversation" to "Začať nový rozhovor",
+        "offer.label" to "Ponuka",
+        "offer.opt_out" to "Neposielajte mi ponuky",
+        "offer.opted_out" to "Ponuky už nebudete dostávať.",
+        "offer.undo" to "Späť",
+        "gift.label" to "Darček pre vás",
+        "gift.open" to "Otvoriť darček",
+        "gift.expired" to "Platnosť tohto darčeka vypršala",
+        "form.send" to "Odoslať odpovede",
+        "form.required" to "Odpovedzte, prosím, na túto otázku.",
+        "form.pick_any" to "Vyberte ľubovoľné",
+        "form.your_answer" to "Vaša odpoveď",
     )
 
     private fun sv(): Map<String, String> = mapOf(
@@ -2675,7 +2945,17 @@ internal object DevReplyStrings {
         "push.channel" to "Svar",
         "a11y.unread" to "Olästa: {count}",
         "home.new_reply" to "Nytt svar från {team}",
-        "home.new_conversation" to "Starta en ny konversation",
+        "offer.label" to "Erbjudande",
+        "offer.opt_out" to "Skicka inga erbjudanden till mig",
+        "offer.opted_out" to "Du får inga erbjudanden.",
+        "offer.undo" to "Ångra",
+        "gift.label" to "En gåva till dig",
+        "gift.open" to "Öppna gåvan",
+        "gift.expired" to "Den här gåvan har gått ut",
+        "form.send" to "Skicka svar",
+        "form.required" to "Svara på den här frågan.",
+        "form.pick_any" to "Välj så många du vill",
+        "form.your_answer" to "Ditt svar",
     )
 
     private fun th(): Map<String, String> = mapOf(
@@ -2769,7 +3049,17 @@ internal object DevReplyStrings {
         "push.channel" to "คำตอบ",
         "a11y.unread" to "ยังไม่ได้อ่าน: {count}",
         "home.new_reply" to "คำตอบใหม่จาก {team}",
-        "home.new_conversation" to "เริ่มการสนทนาใหม่",
+        "offer.label" to "ข้อเสนอ",
+        "offer.opt_out" to "ไม่ต้องส่งข้อเสนอให้ฉัน",
+        "offer.opted_out" to "คุณจะไม่ได้รับข้อเสนออีก",
+        "offer.undo" to "เลิกทำ",
+        "gift.label" to "ของขวัญสำหรับคุณ",
+        "gift.open" to "เปิดของขวัญ",
+        "gift.expired" to "ของขวัญนี้หมดอายุแล้ว",
+        "form.send" to "ส่งคำตอบ",
+        "form.required" to "โปรดตอบคำถามนี้",
+        "form.pick_any" to "เลือกได้หลายข้อ",
+        "form.your_answer" to "คำตอบของคุณ",
     )
 
     private fun tr(): Map<String, String> = mapOf(
@@ -2863,7 +3153,17 @@ internal object DevReplyStrings {
         "push.channel" to "Yanıtlar",
         "a11y.unread" to "{count} okunmamış",
         "home.new_reply" to "{team} ekibinden yeni yanıt",
-        "home.new_conversation" to "Yeni bir sohbet başlat",
+        "offer.label" to "Teklif",
+        "offer.opt_out" to "Bana teklif gönderme",
+        "offer.opted_out" to "Artık teklif almayacaksınız.",
+        "offer.undo" to "Geri al",
+        "gift.label" to "Sana bir hediye",
+        "gift.open" to "Hediyeyi aç",
+        "gift.expired" to "Bu hediyenin süresi doldu",
+        "form.send" to "Yanıtları gönder",
+        "form.required" to "Lütfen bu soruyu yanıtlayın.",
+        "form.pick_any" to "İstediğini seç",
+        "form.your_answer" to "Yanıtın",
     )
 
     private fun uk(): Map<String, String> = mapOf(
@@ -2957,7 +3257,17 @@ internal object DevReplyStrings {
         "push.channel" to "Відповіді",
         "a11y.unread" to "Непрочитані: {count}",
         "home.new_reply" to "Нова відповідь від {team}",
-        "home.new_conversation" to "Почати нову розмову",
+        "offer.label" to "Пропозиція",
+        "offer.opt_out" to "Не надсилати мені пропозиції",
+        "offer.opted_out" to "Ви не отримуватимете пропозицій.",
+        "offer.undo" to "Скасувати",
+        "gift.label" to "Подарунок для вас",
+        "gift.open" to "Відкрити подарунок",
+        "gift.expired" to "Термін дії подарунка минув",
+        "form.send" to "Надіслати відповіді",
+        "form.required" to "Дайте відповідь на це питання.",
+        "form.pick_any" to "Можна вибрати кілька",
+        "form.your_answer" to "Ваша відповідь",
     )
 
     private fun vi(): Map<String, String> = mapOf(
@@ -3051,7 +3361,17 @@ internal object DevReplyStrings {
         "push.channel" to "Phản hồi",
         "a11y.unread" to "Chưa đọc: {count}",
         "home.new_reply" to "Trả lời mới từ {team}",
-        "home.new_conversation" to "Bắt đầu cuộc trò chuyện mới",
+        "offer.label" to "Ưu đãi",
+        "offer.opt_out" to "Đừng gửi ưu đãi cho tôi",
+        "offer.opted_out" to "Bạn sẽ không nhận ưu đãi nữa.",
+        "offer.undo" to "Hoàn tác",
+        "gift.label" to "Một món quà cho bạn",
+        "gift.open" to "Mở quà",
+        "gift.expired" to "Món quà này đã hết hạn",
+        "form.send" to "Gửi câu trả lời",
+        "form.required" to "Vui lòng trả lời câu này.",
+        "form.pick_any" to "Chọn tùy ý",
+        "form.your_answer" to "Câu trả lời của bạn",
     )
 
     private fun zh_Hans(): Map<String, String> = mapOf(
@@ -3145,7 +3465,17 @@ internal object DevReplyStrings {
         "push.channel" to "回复",
         "a11y.unread" to "{count} 条未读",
         "home.new_reply" to "{team} 的新回复",
-        "home.new_conversation" to "开始新的对话",
+        "offer.label" to "优惠",
+        "offer.opt_out" to "不要给我发送优惠",
+        "offer.opted_out" to "你将不会再收到优惠。",
+        "offer.undo" to "撤销",
+        "gift.label" to "送你一份礼物",
+        "gift.open" to "打开礼物",
+        "gift.expired" to "此礼物已过期",
+        "form.send" to "发送回答",
+        "form.required" to "请回答这个问题。",
+        "form.pick_any" to "可多选",
+        "form.your_answer" to "你的回答",
     )
 
     private fun zh_Hant(): Map<String, String> = mapOf(
@@ -3239,6 +3569,16 @@ internal object DevReplyStrings {
         "push.channel" to "回覆",
         "a11y.unread" to "未讀：{count}",
         "home.new_reply" to "{team} 的新回覆",
-        "home.new_conversation" to "開始新的對話",
+        "offer.label" to "優惠",
+        "offer.opt_out" to "不要傳送優惠給我",
+        "offer.opted_out" to "你將不會再收到優惠。",
+        "offer.undo" to "復原",
+        "gift.label" to "送你一份禮物",
+        "gift.open" to "打開禮物",
+        "gift.expired" to "此禮物已過期",
+        "form.send" to "傳送回答",
+        "form.required" to "請回答這個問題。",
+        "form.pick_any" to "可複選",
+        "form.your_answer" to "你的回答",
     )
 }

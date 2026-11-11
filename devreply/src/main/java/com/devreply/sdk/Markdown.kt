@@ -6,7 +6,7 @@ package com.devreply.sdk
  * `MarkdownTest` runs every case in `sdk/conformance/markdown/cases.json`. No HTML, no dependencies.
  */
 internal object Markdown {
-    /** A run of text with the marks that are on. [link] is an http(s) or mailto URL. */
+    /** A run of text with the marks that are on. [link] is an http(s) or mailto URL, or one of the app's schemes (0.6.0). */
     data class Span(
         val text: String,
         val bold: Boolean = false,
@@ -58,8 +58,11 @@ internal object Markdown {
         else -> copy(italic = true)
     }
 
-    /** Inline marks, left to right. [marks]: the marks already on (its text is ignored). */
-    fun inline(s: String, marks: Span = Span("")): List<Span> {
+    /**
+     * Inline marks, left to right. [marks]: the marks already on (its text is ignored). [schemes]: the app's own
+     * deep-link schemes (config `link_schemes`, 0.6.0), which `[text](url)` links may use besides http(s) and mailto.
+     */
+    fun inline(s: String, marks: Span = Span(""), schemes: List<String> = emptyList()): List<Span> {
         val out = ArrayList<Span>()
         val buf = StringBuilder()
         fun flush() {
@@ -89,8 +92,10 @@ internal object Markdown {
                 if (close != -1 && end != -1 && ' ' !in s.substring(close + 2, end) && close > i + 1) {
                     val url = s.substring(close + 2, end)
                     flush()
-                    val inner = if (SCHEMES.any { url.startsWith(it) }) marks.copy(link = url) else marks
-                    out.addAll(inline(s.substring(i + 1, close), inner))
+                    val allowed = SCHEMES.any { url.startsWith(it) } ||
+                        (schemes.isNotEmpty() && LinkPolicy.markdownPrefixes(schemes).any { url.startsWith(it, ignoreCase = true) })
+                    val inner = if (allowed) marks.copy(link = url) else marks
+                    out.addAll(inline(s.substring(i + 1, close), inner, schemes))
                     i = end + 1; continue
                 }
             }
@@ -114,7 +119,7 @@ internal object Markdown {
                 val k = findCloser(s, i, tok)
                 if (k == -1) break
                 flush()
-                out.addAll(inline(s.substring(i + n, k), marks.with(tok)))
+                out.addAll(inline(s.substring(i + n, k), marks.with(tok), schemes))
                 i = k + n
                 continue@outer
             }
@@ -188,8 +193,8 @@ internal object Markdown {
         class Items(val ordered: Boolean, val start: Int, val items: MutableList<MutableList<String>>) : Open
     }
 
-    /** The message's blocks. Never throws: anything unrecognised is paragraph text. */
-    fun parse(md: String): List<Node> {
+    /** The message's blocks. Never throws: anything unrecognised is paragraph text. [schemes]: see [inline]. */
+    fun parse(md: String, schemes: List<String> = emptyList()): List<Node> {
         val lines = md.replace("\r\n", "\n").replace('\r', '\n').split('\n')
         val blocks = ArrayList<Node>()
         var cur: Open? = null
@@ -197,10 +202,10 @@ internal object Markdown {
         fun close() {
             when (val c = cur) {
                 is Open.Lines -> {
-                    val spans = inline(c.lines.joinToString("\n"))
+                    val spans = inline(c.lines.joinToString("\n"), schemes = schemes)
                     blocks.add(if (c.quote) Node.Quote(spans) else Node.Paragraph(spans))
                 }
-                is Open.Items -> blocks.add(Node.ListBlock(c.ordered, c.start, c.items.map { inline(it.joinToString("\n")) }))
+                is Open.Items -> blocks.add(Node.ListBlock(c.ordered, c.start, c.items.map { inline(it.joinToString("\n"), schemes = schemes) }))
                 null -> {}
             }
             cur = null
@@ -226,7 +231,7 @@ internal object Markdown {
             val heading = heading(line)
             if (heading != null) {
                 close()
-                blocks.add(Node.Heading(inline(heading)))
+                blocks.add(Node.Heading(inline(heading, schemes = schemes)))
                 i++; continue
             }
             val quote = quote(line)

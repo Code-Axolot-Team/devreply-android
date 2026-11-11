@@ -167,7 +167,12 @@ internal object PushManager {
     fun asked(context: Context) {
         prefs(context).edit().putBoolean("asked", true).apply()
         askVersion++
+        // The answer to DevReply's prompt: the team sees it (0.6.0).
+        if (Messenger.client != null) Messenger.scope.launch { Messenger.syncPushPermission() }
     }
+
+    /** DevReply showed the Android 13+ permission prompt on this device (kept, so a no reads as denied). */
+    fun hasAsked(context: Context): Boolean = prefs(context).getBoolean("asked", false)
 
     fun notNow(context: Context) {
         prefs(context).edit().putLong("snoozed_until", System.currentTimeMillis() + SNOOZE_MS).apply()

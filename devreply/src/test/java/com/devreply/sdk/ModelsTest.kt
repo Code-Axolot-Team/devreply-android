@@ -202,8 +202,8 @@ class PersonaTest {
         assertTrue(odd.team.isEmpty())
     }
 
-    @Test fun sdkVersionIs050() {
-        assertEquals("0.5.1", DEVREPLY_SDK_VERSION)
+    @Test fun sdkVersionIs060() {
+        assertEquals("0.6.0", DEVREPLY_SDK_VERSION)
     }
 }
 

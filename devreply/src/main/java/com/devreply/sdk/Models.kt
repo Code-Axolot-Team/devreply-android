@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Version of this SDK. Sent on install registration and compared with each block's `min_sdk`. */
-public const val DEVREPLY_SDK_VERSION: String = "0.5.1"
+public const val DEVREPLY_SDK_VERSION: String = "0.6.0"
 
 /** What a conversation is about. Set by the start button the user picked (spec 05). */
 public enum class DevReplyCategory(internal val wire: String) {
@@ -70,6 +70,11 @@ internal data class MessengerConfig(
     val replyWithinKey: String? = null,
     /** False: the team switched the chat off in the dashboard (0.4.4). Missing counts as on. */
     val enabled: Boolean = true,
+    /**
+     * The app's own deep-link schemes (0.6.0; Settings → deep link), e.g. `kneefit`: link buttons, gifts and
+     * Markdown links may open them, as well as https. Lowercase, without `://`.
+     */
+    val linkSchemes: List<String> = emptyList(),
 ) {
     data class StartButton(val category: DevReplyCategory, val emoji: String, val title: String)
 
@@ -114,6 +119,7 @@ internal data class MessengerConfig(
                     ?: emptySet(),
                 replyWithinKey = json.str("reply_within_key"),
                 enabled = json.opt("enabled") != false,
+                linkSchemes = LinkPolicy.schemes(json.optJSONArray("link_schemes")),
             )
         }
     }
@@ -167,6 +173,10 @@ internal data class Message(
     val persona: Persona? = null,
     /** A user message that answers a buttons question (0.5.0): which question, which option. */
     val answer: Answer? = null,
+    /** An offer or campaign from the team (0.6.0): shows the Offer tag and "Don't send me offers". */
+    val promotional: Boolean = false,
+    /** A user message that answers a form (0.6.0): which form, the answers. */
+    val formAnswer: FormAnswer? = null,
 ) {
     enum class Author { User, Admin, Agent, System }
 
@@ -191,6 +201,10 @@ internal data class Message(
             // On the message's text block (or the message itself); only the user's messages answer.
             answer = if (json.str("author") != "user") null else Answer.parse(json.optJSONObject("answer"))
                 ?: json.optJSONArray("blocks")?.let { a -> (0 until a.length()).firstNotNullOfOrNull { Answer.parse(a.optJSONObject(it)?.optJSONObject("answer")) } },
+            // Only the team's messages are offers.
+            promotional = json.str("author") != "user" && json.opt("promotional") == true,
+            formAnswer = if (json.str("author") != "user") null else FormAnswer.parse(json.optJSONObject("form_answer"))
+                ?: json.optJSONArray("blocks")?.let { a -> (0 until a.length()).firstNotNullOfOrNull { FormAnswer.parse(a.optJSONObject(it)?.optJSONObject("form_answer")) } },
         )
     }
 }
@@ -248,6 +262,49 @@ internal sealed interface Block {
         data class Option(val id: String, val label: String)
     }
 
+    /**
+     * 1 to 3 buttons that open a link (0.6.0): the app's own deep link or https. [text]: an optional intro in
+     * Markdown ([nodes], parsed once). A tap is reported (`POST …/taps`) and the URL opened by the OS.
+     */
+    data class Links(
+        val text: String?,
+        val nodes: List<com.devreply.sdk.Markdown.Node>,
+        val links: List<Link>,
+        val fallback: String,
+    ) : Block {
+        data class Link(val id: String, val label: String, val url: String)
+    }
+
+    /** A gift (0.6.0): a card with "Open gift", which reports the opening and opens [url]; past [expiresAt], expired. */
+    data class Gift(
+        val giftId: String,
+        val title: String,
+        val text: String,
+        val url: String,
+        val expiresAt: Instant?,
+        val fallback: String,
+    ) : Block {
+        fun isExpired(now: Instant = Instant.now()): Boolean = expiresAt != null && !now.isBefore(expiresAt)
+    }
+
+    /** Several questions answered in one go (0.6.0): single choice, multiple choice, free text. */
+    data class Form(
+        val text: String?,
+        val nodes: List<com.devreply.sdk.Markdown.Node>,
+        val questions: List<Question>,
+        val fallback: String,
+    ) : Block {
+        enum class Kind { Single, Multi, Text }
+
+        data class Question(
+            val id: String,
+            val text: String,
+            val kind: Kind,
+            val options: List<Buttons.Option>,
+            val required: Boolean,
+        )
+    }
+
     val plainText: String
         get() = when (this) {
             is Text -> text
@@ -256,11 +313,15 @@ internal sealed interface Block {
             is Unsupported -> fallback
             is Markdown -> fallback
             is Buttons -> question
+            is Links -> fallback
+            is Gift -> fallback
+            is Form -> fallback
         }
 
     companion object {
         /** [sdk]: the version compared with `min_sdk` (this SDK's; tests pass another). */
-        fun parse(json: JSONObject, sdk: String = DEVREPLY_SDK_VERSION): Block {
+        /** [schemes]: the app's deep-link schemes Markdown links may open (from the config; tests pass others). */
+        fun parse(json: JSONObject, sdk: String = DEVREPLY_SDK_VERSION, schemes: List<String> = LinkPolicy.appSchemes): Block {
             val fallback = json.str("fallback") ?: t("unsupported")
             val minSdk = json.str("min_sdk")
             if (minSdk != null && isVersion(sdk, olderThan = minSdk)) return Unsupported(fallback)
@@ -269,11 +330,14 @@ internal sealed interface Block {
                 // The user's own messages stay plain text; this is for the team's and agents' replies.
                 "markdown" -> json.str("text")?.let { md ->
                     runCatching {
-                        val nodes = com.devreply.sdk.Markdown.parse(md)
+                        val nodes = com.devreply.sdk.Markdown.parse(md, schemes)
                         Markdown(md, nodes, json.str("fallback") ?: com.devreply.sdk.Markdown.plain(nodes))
                     }.getOrNull()
                 } ?: Unsupported(json.str("fallback") ?: json.str("text") ?: fallback)
-                "buttons" -> buttons(json) ?: Unsupported(json.str("fallback") ?: json.str("text") ?: fallback)
+                "buttons" -> buttons(json, schemes) ?: Unsupported(json.str("fallback") ?: json.str("text") ?: fallback)
+                "links" -> links(json, schemes) ?: Unsupported(fallback)
+                "gift" -> gift(json) ?: Unsupported(fallback)
+                "form" -> form(json, schemes) ?: Unsupported(fallback)
                 "image" -> json.str("url")?.let { Image(it, json.int("width"), json.int("height")) } ?: Unsupported(t("photo"))
                 "file" -> json.str("url")?.let {
                     File(it, json.str("name") ?: t("file"), json.int("size"), json.str("mime"))
@@ -283,16 +347,82 @@ internal sealed interface Block {
         }
 
         /** A question with 2 to 5 usable options (an id and a label each; the first of a repeated id), else null. */
-        private fun buttons(json: JSONObject): Buttons? = runCatching {
+        private fun buttons(json: JSONObject, schemes: List<String>): Buttons? = runCatching {
             val md = json.str("text")?.takeIf { it.isNotBlank() } ?: return null
             val options = json.optJSONArray("options").lossy { o ->
                 val id = o.str("id")?.takeIf { it.isNotEmpty() } ?: error("no id")
                 Buttons.Option(id, o.str("label")?.trim()?.takeIf { it.isNotEmpty() } ?: error("no label"))
             }.distinctBy { it.id }.take(5)
             if (options.size < 2) return null
-            val nodes = com.devreply.sdk.Markdown.parse(md)
+            val nodes = com.devreply.sdk.Markdown.parse(md, schemes)
             val question = com.devreply.sdk.Markdown.plain(nodes).ifBlank { md }
             Buttons(md, nodes, question, options, json.str("fallback") ?: question)
+        }.getOrNull()
+
+        /** The optional Markdown intro of a links block or a form: its text and nodes, or nulls. */
+        private fun intro(json: JSONObject, schemes: List<String>): Pair<String?, List<com.devreply.sdk.Markdown.Node>> {
+            val md = json.str("text")?.takeIf { it.isNotBlank() } ?: return null to emptyList()
+            return md to com.devreply.sdk.Markdown.parse(md, schemes)
+        }
+
+        /** 1 to 3 links with an id, a label and a URL (the first of a repeated id), else null. */
+        private fun links(json: JSONObject, schemes: List<String>): Links? = runCatching {
+            val links = json.optJSONArray("links").lossy { l ->
+                Links.Link(
+                    id = l.str("id")?.takeIf { it.isNotEmpty() } ?: error("no id"),
+                    label = l.str("label")?.trim()?.takeIf { it.isNotEmpty() } ?: error("no label"),
+                    url = l.str("url")?.trim()?.takeIf { it.isNotEmpty() } ?: error("no url"),
+                )
+            }.distinctBy { it.id }.take(3)
+            if (links.isEmpty()) return null
+            val (md, nodes) = intro(json, schemes)
+            val fallback = json.str("fallback")
+                ?: (listOfNotNull(md) + links.map { "${it.label}: ${it.url}" }).joinToString("\n\n")
+            Links(md, nodes, links, fallback)
+        }.getOrNull()
+
+        /** A gift with an id, a title and a URL, else null. A date that can't be read means no expiry. */
+        private fun gift(json: JSONObject): Gift? = runCatching {
+            val id = json.str("gift_id")?.takeIf { it.isNotBlank() && it.all { c -> c.isLetterOrDigit() || c in "-_" } } ?: return null
+            val title = json.str("title")?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val url = json.str("url")?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val text = json.str("text")?.trim() ?: ""
+            Gift(id, title, text, url, json.str("expires_at")?.let(::parseRfc3339), json.str("fallback") ?: "$title. $text".trim())
+        }.getOrNull()
+
+        /**
+         * 1 to 5 questions (the first of a repeated id), each with a text and a kind this SDK knows; single and
+         * multi need 2 to 6 options. Anything else: null (the fallback, answered in the user's own words).
+         */
+        private fun form(json: JSONObject, schemes: List<String>): Form? = runCatching {
+            val raw = json.optJSONArray("questions") ?: return null
+            val questions = (0 until raw.length()).map { i ->
+                val q = raw.optJSONObject(i) ?: return null
+                val kind = when (q.str("kind")) {
+                    "single" -> Form.Kind.Single
+                    "multi" -> Form.Kind.Multi
+                    "text" -> Form.Kind.Text
+                    else -> return null // a newer kind: the user couldn't answer it here
+                }
+                val options = if (kind == Form.Kind.Text) emptyList() else q.optJSONArray("options").lossy { o ->
+                    val id = o.str("id")?.takeIf { it.isNotEmpty() } ?: error("no id")
+                    Buttons.Option(id, o.str("label")?.trim()?.takeIf { it.isNotEmpty() } ?: error("no label"))
+                }.distinctBy { it.id }.take(6)
+                if (kind != Form.Kind.Text && options.size < 2) return null
+                Form.Question(
+                    id = q.str("id")?.takeIf { it.isNotEmpty() } ?: return null,
+                    text = q.str("text")?.trim()?.takeIf { it.isNotEmpty() } ?: return null,
+                    kind = kind,
+                    options = options,
+                    required = q.opt("required") == true,
+                )
+            }.distinctBy { it.id }
+            if (questions.isEmpty() || questions.size > 5) return null
+            val (md, nodes) = intro(json, schemes)
+            val fallback = json.str("fallback") ?: (listOfNotNull(md) + questions.mapIndexed { i, q ->
+                "${i + 1}. ${q.text}" + if (q.options.isEmpty()) "" else " " + q.options.joinToString(" / ") { it.label }
+            }).joinToString("\n")
+            Form(md, nodes, questions, fallback)
         }.getOrNull()
 
         fun isVersion(a: String, olderThan: String): Boolean {
@@ -323,9 +453,17 @@ internal data class StartedConversation(val conversation: Conversation, val mess
  * What the end user told us about themselves. [restored] (0.5.0): `login` moved this install back to the
  * user it had before a logout on this device (spec 03, same device after logout): their conversations are back.
  */
-internal data class Profile(val name: String?, val email: String?, val restored: Boolean = false) {
+internal data class Profile(
+    val name: String?,
+    val email: String?,
+    val restored: Boolean = false,
+    /** The user said "Don't send me offers" (0.6.0). */
+    val noPromotions: Boolean = false,
+) {
     companion object {
-        fun parse(json: JSONObject) = Profile(json.str("name"), json.str("email"), json.opt("restored") == true)
+        fun parse(json: JSONObject) = Profile(
+            json.str("name"), json.str("email"), json.opt("restored") == true, json.opt("no_promotions") == true,
+        )
     }
 }
 

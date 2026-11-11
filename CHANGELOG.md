@@ -4,6 +4,31 @@ Released versions stay supported: the API only grows, and every released version
 against the server on every change. Features added later may be missing in an older version; nothing it
 uses breaks.
 
+## 0.6.0
+
+- Link buttons (block `links`): an optional Markdown intro and 1–3 outlined buttons. A tap reports it
+  (`POST /v1/conversations/{id}/taps`, fire-and-forget) and opens the link with the OS, so the app's own deep-link
+  handling runs. Only `https://` links and the app's own schemes (config `link_schemes`) open; other buttons don't show.
+- Markdown links may also use the app's own schemes from `link_schemes` (other custom schemes stay plain text).
+- Gifts (block `gift`): a card with a wrapped box, "A gift for you", the title, one line and "Open gift", which
+  reports the opening (`POST /v1/gifts/{id}/opened`) and opens the gift's link. After `expires_at` it says
+  "This gift has expired" (also while on screen).
+- Several questions in one card (block `form`): single choice, multiple choice ("Pick any") and free text ("Your
+  answer"); a required one left empty says "Please answer this one."; "Send answers" sends them all once
+  (`{"form_answer": …}`), then the card shows the answers read-only. Answered elsewhere (409): it reloads; refused
+  (400): the card opens again with the server's reason.
+- Offers: a team message marked `promotional` shows an Offer tag and "Don't send me offers" (`PATCH /v1/me
+  {"no_promotions": true}`), then "You won't get offers. Undo".
+- The notification permission (`allowed`, `denied`, `not_asked`) goes to the team at configure and whenever the app
+  comes back to the foreground, only when it changed for this install (`PATCH /v1/install {"push_permission"}`).
+  Android 13+: not granted counts as `denied` once DevReply asked, `not_asked` before; below 13 it's
+  `areNotificationsEnabled()`.
+- Removed: the "Start a new conversation" button under a conversation a start tile continued. The tile still opens
+  the topic's open conversation; the user writes there or goes back. `present(context, category, …)` still starts a
+  new one.
+- Every new block has `min_sdk` 0.6.0 and a text version: older versions show the text, and blocks newer than this
+  one still fall back to theirs.
+
 ## 0.5.1
 
 - The message box always appears: the profile (`GET /v1/me`) loads on its own, never behind the messages, and

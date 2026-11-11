@@ -18,6 +18,8 @@ import kotlinx.coroutines.launch
 internal object AppWatcher : Application.ActivityLifecycleCallbacks {
     private var started = false
     private var resumed = 0
+    /** The app's activities between onStart and onStop: 0 → 1 is the app coming to the foreground. */
+    private var startedCount = 0
     private var lastRefresh = 0L
     private var polling: Job? = null
 
@@ -29,7 +31,10 @@ internal object AppWatcher : Application.ActivityLifecycleCallbacks {
         if (started) return
         started = true
         app.registerActivityLifecycleCallbacks(this)
-        if (current != null && !current.isFinishing) onActivityResumed(current)
+        if (current != null && !current.isFinishing) {
+            startedCount = 1
+            onActivityResumed(current)
+        }
     }
 
     override fun onActivityResumed(activity: Activity) {
@@ -65,8 +70,15 @@ internal object AppWatcher : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-    override fun onActivityStarted(activity: Activity) = Unit
-    override fun onActivityStopped(activity: Activity) = Unit
+    override fun onActivityStarted(activity: Activity) {
+        // Back in the foreground (the process's lifecycle, without a dependency): the user may have changed the
+        // notification permission in Settings meanwhile (0.6.0).
+        if (startedCount++ == 0) Messenger.scope.launch { Messenger.syncPushPermission() }
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        startedCount = maxOf(0, startedCount - 1)
+    }
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
     override fun onActivityDestroyed(activity: Activity) = Unit
 }

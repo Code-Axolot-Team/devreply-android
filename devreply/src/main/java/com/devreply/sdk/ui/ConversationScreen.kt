@@ -152,8 +152,6 @@ internal fun ConversationScreen(
     conversationId: UUID?,
     category: DevReplyCategory?,
     back: () -> Unit,
-    /** A start tile continued this conversation (0.5.1): "Start a new conversation" in its topic. */
-    startNew: (() -> Unit)? = null,
 ) {
     val model = remember { ConversationModel(conversationId, category) }
     val theme = LocalTheme.current
@@ -187,7 +185,8 @@ internal fun ConversationScreen(
         Messenger.liveListeners += listener
         onDispose { Messenger.liveListeners -= listener }
     }
-    val appContext = LocalContext.current.applicationContext
+    val screenContext = LocalContext.current
+    val appContext = screenContext.applicationContext
     DisposableEffect(model.conversationId) {
         Messenger.visibleConversation = model.conversationId
         // On screen now: its notification has done its job.
@@ -276,11 +275,13 @@ internal fun ConversationScreen(
                                 is ChatItem.Time -> TimeLabel(item.at)
                                 is ChatItem.Msg -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     item.by?.let { PersonaLabel(it) }
+                                    val message = item.message
                                     MessageRow(
-                                        item.message, config.teamName,
-                                        chosen = if (item.message.blocks.any { it is Block.Buttons }) model.chosenOption(item.message.id) else null,
-                                        onAnswer = { model.answer(item.message, it) },
+                                        message, config.teamName,
+                                        chosen = if (message.blocks.any { it is Block.Buttons }) model.chosenOption(message.id) else null,
+                                        onAnswer = { model.answer(message, it) },
                                         onOpenImage = { viewing = it },
+                                        actions = remember(model, message.id) { model.actions(message, screenContext) },
                                     )
                                 }
                                 is ChatItem.Pend -> PendingRow(item.item, config.teamName) { model.retry(item.item) }
@@ -291,7 +292,6 @@ internal fun ConversationScreen(
                 }
             }
         }
-        if (startNew != null && model.conversation?.isClosed != true) StartNewBar(startNew)
         when {
             // Never an empty bottom: loading, then why it can't load, with Try again (retries go on meanwhile).
             Messenger.profile == null -> ProfileLoading(Messenger.profileError)
@@ -360,27 +360,6 @@ private fun Intro(category: DevReplyCategory) {
         }
         BasicText(title, style = display(26.sp).copy(textAlign = TextAlign.Center))
         BasicText(category.prompt, style = text(16.sp, FontWeight.Medium, theme.muted).copy(textAlign = TextAlign.Center))
-    }
-}
-
-/** Under a continued conversation: a new one in the same topic, one tap away (0.5.1). */
-@Composable
-private fun StartNewBar(startNew: () -> Unit) {
-    val label = com.devreply.sdk.t("home.new_conversation")
-    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.End) {
-        BrutalButton(startNew, Modifier.testTag("devreply.newconversation"), shadow = 3.dp, label = label) {
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                BasicText(label, style = text(14.sp, FontWeight.Bold))
-                Image(
-                    painterResource(R.drawable.devreply_ic_arrow_right), null, Modifier.size(16.dp),
-                    colorFilter = ColorFilter.tint(LocalTheme.current.ink),
-                )
-            }
-        }
     }
 }
 
@@ -917,6 +896,8 @@ internal fun MessageRow(
     /** A buttons question: the option the user picked, null while unanswered. */
     chosen: String? = null,
     onAnswer: (Block.Buttons.Option) -> Unit = {},
+    /** Link buttons, gifts and forms (0.6.0). Null: links and gifts just open, forms show their text version. */
+    actions: BlockActions? = null,
     onOpenImage: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -949,10 +930,63 @@ internal fun MessageRow(
                 is Block.Buttons ->
                     if (message.isFromUser) TextBubble(block.fallback, fromUser = true)
                     else ButtonsQuestion(block, chosen, onAnswer)
+                // The team's own blocks (0.6.0); from the user they'd only be text.
+                is Block.Links ->
+                    if (message.isFromUser) TextBubble(block.fallback, fromUser = true)
+                    else LinksBlock(block) { link -> actions?.openLink?.invoke(link) ?: openAllowedLink(context, link.url) }
+                is Block.Gift ->
+                    if (message.isFromUser) TextBubble(block.fallback, fromUser = true)
+                    else GiftCard(block) { actions?.openGift?.invoke(block) ?: openAllowedLink(context, block.url) }
+                is Block.Form ->
+                    if (message.isFromUser || actions == null) TextBubble(block.fallback, message.isFromUser)
+                    else FormCard(
+                        block,
+                        draft = actions.formDraft(),
+                        answered = actions.formAnswered(),
+                        error = actions.formError(),
+                        onChange = actions.changeForm,
+                        onSend = { actions.sendForm(block) },
+                    )
             }
         }
+        if (message.promotional && !message.isFromUser) OfferLine()
     }
 }
+
+/** What a message's 0.6.0 blocks do, for one message of the open conversation. */
+internal class BlockActions(
+    val openLink: (Block.Links.Link) -> Unit,
+    val openGift: (Block.Gift) -> Unit,
+    val formDraft: () -> Map<String, Any>,
+    val formAnswered: () -> com.devreply.sdk.FormAnswer?,
+    val formError: () -> String?,
+    val changeForm: (Map<String, Any>) -> Unit,
+    val sendForm: (Block.Form) -> List<String>,
+)
+
+/**
+ * A tap on a link button: reported (`POST …/taps`, fire-and-forget), then opened by the OS. "Open gift": reported
+ * (`POST /v1/gifts/…/opened`), then opened. Links the chat may not open do neither.
+ */
+internal fun ConversationModel.actions(message: Message, context: android.content.Context) = BlockActions(
+    openLink = { link ->
+        if (com.devreply.sdk.LinkPolicy.isAllowed(link.url)) {
+            linkTapped(message, link)
+            openAllowedLink(context, link.url)
+        }
+    },
+    openGift = { gift ->
+        if (com.devreply.sdk.LinkPolicy.isAllowed(gift.url)) {
+            giftOpened(gift)
+            openAllowedLink(context, gift.url)
+        }
+    },
+    formDraft = { formDrafts[message.id].orEmpty() },
+    formAnswered = { formAnswer(message.id) },
+    formError = { formErrors[message.id] },
+    changeForm = { formDrafts[message.id] = it },
+    sendForm = { form -> submit(message, form) },
+)
 
 @Composable
 private fun PendingRow(item: ConversationModel.Pending, teamName: String, retry: () -> Unit) {

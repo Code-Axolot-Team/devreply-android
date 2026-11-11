@@ -76,6 +76,32 @@ internal open class ApiClient(val baseUrl: String, private val deadlineMs: Long 
     suspend fun sendMessage(token: String, conversation: UUID, text: String, attachments: List<String>, answer: Answer? = null): Message =
         Message.parse(send("POST", "v1/conversations/$conversation/messages", token, messageBody(text, null, attachments, answer)) as JSONObject)
 
+    /**
+     * The user answered a form (0.6.0): one request with every answer. The server answers with the user's message
+     * (a summary as its text, the answers in its block); 409 when it's answered already, 400 for a missing required one.
+     */
+    suspend fun sendFormAnswer(token: String, conversation: UUID, answer: FormAnswer): Message =
+        Message.parse(send("POST", "v1/conversations/$conversation/messages", token, formAnswerBody(answer)) as JSONObject)
+
+    /** A link button was tapped (0.6.0): for the team's stats and webhooks. 204. */
+    suspend fun linkTapped(token: String, conversation: UUID, messageId: UUID, linkId: String) {
+        send("POST", "v1/conversations/$conversation/taps", token, tapBody(messageId, linkId))
+    }
+
+    /** "Open gift" was tapped (0.6.0); install-scoped, 204. */
+    suspend fun giftOpened(token: String, giftId: String) {
+        send("POST", "v1/gifts/$giftId/opened", token)
+    }
+
+    /** "Don't send me offers" (true) or Undo (false), 0.6.0. */
+    suspend fun setNoPromotions(token: String, value: Boolean): Profile =
+        Profile.parse(send("PATCH", "v1/me", token, JSONObject().put("no_promotions", value)) as JSONObject)
+
+    /** The phone's notification permission for this app (0.6.0): `allowed`, `denied` or `not_asked`. */
+    suspend fun updatePushPermission(token: String, permission: String) {
+        send("PATCH", "v1/install", token, JSONObject().put("push_permission", permission))
+    }
+
     /** The chat's language changed (setLocale, or the device's): the team sees it next to the user. */
     suspend fun updateLocale(token: String, locale: String) {
         send("PATCH", "v1/install", token, JSONObject().put("locale", locale))
@@ -165,6 +191,11 @@ internal open class ApiClient(val baseUrl: String, private val deadlineMs: Long 
 
         fun installBody(publicKey: String, device: DeviceInfo, deviceKey: String?): JSONObject =
             device.json().put("public_key", publicKey).apply { if (deviceKey != null) put("device_key", deviceKey) }
+
+        fun formAnswerBody(answer: FormAnswer): JSONObject = JSONObject().put("form_answer", answer.json())
+
+        fun tapBody(messageId: UUID, linkId: String): JSONObject =
+            JSONObject().put("message_id", messageId.toString()).put("link_id", linkId)
 
         fun messageBody(text: String, category: DevReplyCategory?, attachments: List<String>, answer: Answer? = null): JSONObject =
             JSONObject()

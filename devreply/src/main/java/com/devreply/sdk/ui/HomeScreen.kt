@@ -173,6 +173,15 @@ private fun TeamFaces(team: List<com.devreply.sdk.Persona>) {
     }
 }
 
+/**
+ * What a start tile opens: the topic's open conversation, if there is one (0.5.1), else a new one in that topic.
+ * Since 0.6.0 there's no "Start a new conversation" from there: the user writes in it, or goes back.
+ */
+internal fun startRoute(category: com.devreply.sdk.DevReplyCategory, conversations: List<Conversation>): Route {
+    val ongoing = conversations.openIn(category) ?: return Route.Chat(null, category)
+    return Route.Chat(ongoing.id, ongoing.category ?: category)
+}
+
 @Composable
 private fun StartSection(config: MessengerConfig, conversations: List<Conversation>, open: (Route) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -181,14 +190,7 @@ private fun StartSection(config: MessengerConfig, conversations: List<Conversati
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 pair.forEach { button ->
                     BrutalButton(
-                        {
-                            // A topic with an open conversation continues it (0.5.1); a new one is one tap from there.
-                            val ongoing = conversations.openIn(button.category)
-                            open(
-                                if (ongoing == null) Route.Chat(null, button.category)
-                                else Route.Chat(ongoing.id, ongoing.category ?: button.category, offersNew = true),
-                            )
-                        },
+                        { open(startRoute(button.category, conversations)) },
                         Modifier.weight(1f).testTag("devreply.start.${button.category.name.lowercase()}"),
                     ) { StartTile(button, config.title(button)) }
                 }

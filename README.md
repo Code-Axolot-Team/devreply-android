@@ -13,23 +13,18 @@ Requires minSdk 26, Kotlin 2 and Compose.
 
 ## Install
 
-From GitHub through [JitPack](https://jitpack.io/#Code-Axolot-Team/devreply-android):
+From [Maven Central](https://central.sonatype.com/artifact/com.devreply/devreply-android), which every Android
+project already has, so there's no repository to add:
 
 ```kotlin
-// settings.gradle.kts
-dependencyResolutionManagement {
-    repositories {
-        google()
-        mavenCentral()
-        maven("https://jitpack.io")
-    }
-}
-
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Code-Axolot-Team:devreply-android:0.5.1")
+    implementation("com.devreply:devreply-android:0.6.0")
 }
 ```
+
+Already on JitPack (`com.github.Code-Axolot-Team:devreply-android:<version>` with `maven("https://jitpack.io")`)?
+That keeps working with the same versions; switching is just the line above.
 
 Using a coding agent? Give it your app's setup guide from the dashboard (Settings → Add DevReply to your app):
 it has your keys and does these steps for you.
@@ -180,6 +175,16 @@ notification icon, add a white-on-transparent drawable named `devreply_push_icon
 If your app's own code or a library (notifee…) shows DevReply's notifications instead of `handlePush`, pass the
 tapped notification's data on: `DevReply.handleNotificationOpened(context, data)` (false for your own). The
 dashboard's push card shows "✓ Taps open the chat" once a tap opened a conversation.
+
+## Link buttons, gifts and forms (0.6)
+
+Replies from your team can carry buttons that open a link, gifts and several questions at once. Nothing to call:
+- **Link buttons** open your app's own deep link (the scheme you set in DevReply → Settings → deep link) or an https
+  link, through the system, so your existing deep-link handling decides what happens (open a screen, a paywall).
+- **Gifts** open your deep link with `devreply_gift=gft_…` added. That token is the only proof: before granting
+  anything, your backend checks it once with `POST https://api.devreply.com/v1/project/gifts/claim {"token": "gft_…"}`
+  (a read-and-write secret key) and gets the user and whether it was claimed already. Never trust the link alone.
+- **Forms** are answered in the chat; your team sees the answers in the inbox (and your server, with webhooks).
 
 ## Sign-in, sign-out and account deletion
 

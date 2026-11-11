@@ -40,13 +40,10 @@ import androidx.compose.ui.graphics.toArgb
 import com.devreply.sdk.Messenger
 import java.util.UUID
 
-/**
- * Where the messenger is: home, or one conversation (existing, or new in a category). [Chat.offersNew]: a
- * start tile opened the topic's open conversation (0.5.1), so "Start a new conversation" is one tap away.
- */
+/** Where the messenger is: home, or one conversation (existing, or new in a category). */
 internal sealed interface Route {
     data object Home : Route
-    data class Chat(val conversationId: UUID?, val category: DevReplyCategory?, val offersNew: Boolean = false) : Route
+    data class Chat(val conversationId: UUID?, val category: DevReplyCategory?) : Route
 }
 
 /**
@@ -190,8 +187,6 @@ private fun MessengerScreen(start: DevReplyCategory?, conversation: UUID?, close
                 conversationId = current.conversationId,
                 category = current.category,
                 back = { stack = stack.dropLast(1) },
-                // In place of this one: back still goes home.
-                startNew = if (current.offersNew) ({ stack = stack.dropLast(1) + Route.Chat(null, current.category) }) else null,
             )
         }
     }
@@ -202,7 +197,7 @@ private val RouteStackSaver = androidx.compose.runtime.saveable.Saver<androidx.c
         state.value.map { r ->
             when (r) {
                 Route.Home -> "home"
-                is Route.Chat -> "chat|${r.conversationId ?: ""}|${r.category?.name ?: ""}|${if (r.offersNew) "new" else ""}"
+                is Route.Chat -> "chat|${r.conversationId ?: ""}|${r.category?.name ?: ""}"
             }
         }
     },
@@ -213,7 +208,6 @@ private val RouteStackSaver = androidx.compose.runtime.saveable.Saver<androidx.c
                 Route.Chat(
                     parts.getOrNull(1)?.takeIf { it.isNotEmpty() }?.let(UUID::fromString),
                     parts.getOrNull(2)?.takeIf { it.isNotEmpty() }?.let { DevReplyCategory.valueOf(it) },
-                    offersNew = parts.getOrNull(3) == "new",
                 )
             }
         })

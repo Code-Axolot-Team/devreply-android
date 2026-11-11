@@ -163,6 +163,7 @@ internal object Messenger {
             refresh()
             syncLocale()
             PushManager.sendTokenIfNeeded()
+            syncPushPermission()
         }
     }
 
@@ -194,6 +195,35 @@ internal object Messenger {
         if (prefs?.getString("locale:$account", null) == tag) return
         runCatching { authorized { api, t -> api.updateLocale(t, tag) } }
             .onSuccess { prefs?.edit()?.putString("locale:$account", tag)?.apply() }
+    }
+
+    private val sendingPermission = Mutex()
+
+    /**
+     * Tells the server the phone's notification permission ([current]: this device's now) when it changed since
+     * this install last sent one (0.6.0). At configure, on every return to the foreground, after DevReply's prompt.
+     */
+    suspend fun syncPushPermission(current: PushPermission? = appContext?.let { PushPermission.current(it) }) {
+        val value = current ?: return
+        val account = account ?: return
+        val key = "push_permission|$account"
+        sendingPermission.withLock {
+            val token = runCatching { token() }.getOrNull() ?: return
+            if (withContext(Dispatchers.IO) { tokens?.token(key) } == PushPermission.sentMark(token, value)) return
+            runCatching { authorized { api, t -> api.updatePushPermission(t, value.wire) } }.onSuccess {
+                // The token the request went with (a revoked one was replaced on the way).
+                val sentWith = cachedToken ?: token
+                withContext(Dispatchers.IO) { tokens?.setToken(PushPermission.sentMark(sentWith, value), key) }
+            }
+        }
+    }
+
+    // ---- offers (0.6.0) ----
+
+    /** "Don't send me offers" ([value] true) or Undo (false): saved, then the profile says it (even if the reply omits it). */
+    suspend fun setNoPromotions(value: Boolean) {
+        val updated = authorized { api, t -> api.setNoPromotions(t, value) }
+        profile = updated.copy(noPromotions = value)
     }
 
     private val account: String?
@@ -385,6 +415,7 @@ internal object Messenger {
         scope.launch {
             refresh()
             PushManager.sendTokenIfNeeded()
+            syncPushPermission()
         }
     }
 
@@ -462,6 +493,7 @@ internal object Messenger {
         scope.launch {
             refresh()
             PushManager.sendTokenIfNeeded()
+            syncPushPermission()
         }
     }
 
@@ -473,6 +505,7 @@ internal object Messenger {
         account?.let {
             tokens?.deleteToken(it)
             tokens?.deleteToken("user|$it")
+            tokens?.deleteToken("push_permission|$it")
         }
         cachedToken = null
         hostUserId = null
